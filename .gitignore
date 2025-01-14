@@ -1,0 +1,9 @@
+__pycache__
+.DS_store
+episodes/
+.vscode/
+replays/
+.idea/
+.venv/
+venv/
+wandb/
