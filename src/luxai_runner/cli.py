@@ -36,7 +36,7 @@ class Args:
 
     verbose: int = 2
     """Verbose Level (0 = silent, 1 = (game-ending errors, debug logs from agents), 2 = warnings (non-game ending invalid actions), 3 = info (system info, unit collisions) )"""
-    seed: Optional[int] = None
+    seed: Optional[int] = 0  #None ---------------------------------
     """Fix a seed for episode(s). All episodes will initialize the same, including tournament ones"""
     render: bool = False
     """Render with a window"""
