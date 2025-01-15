@@ -12,11 +12,11 @@ class EnvParams:
     map_width: int = 24
     map_height: int = 24
     num_teams: int = 2
-    match_count_per_episode: int = 5
+    match_count_per_episode: int = 1  #5-----------------------
     """number of matches to play in one episode"""
 
     # configs for units
-    max_units: int = 16
+    max_units: int = 5  #16-----------------------
     init_unit_energy: int = 100
     min_unit_energy: int = 0
     max_unit_energy: int = 400
@@ -69,13 +69,13 @@ class EnvParams:
     nebula_tile_energy_reduction: int = 0
     """amount of energy nebula tiles reduce from a unit"""
 
-    nebula_tile_drift_speed: float = -0.05
+    nebula_tile_drift_speed: float = 0   #-0.05----------------
     """
     how fast nebula tiles drift in one of the diagonal directions over time. If positive, flows to the top/right, negative flows to bottom/left
     """
     # TODO (stao): allow other kinds of symmetric drifts?
 
-    energy_node_drift_speed: int = 0.02
+    energy_node_drift_speed: int = 0   #0.02------------------
     """
     how fast energy nodes will move around over time
     """
@@ -95,7 +95,9 @@ env_params_ranges = dict(
     unit_sap_dropoff_factor=[0.25, 0.5, 1],
     unit_energy_void_factor=[0.0625, 0.125, 0.25, 0.375],
     # map randomizations
-    nebula_tile_drift_speed=[-0.05, -0.025, 0.025, 0.05],
-    energy_node_drift_speed=[0.01, 0.02, 0.03, 0.04, 0.05],
+    # nebula_tile_drift_speed=[-0.05, -0.025, 0.025, 0.05], -----------------------------
+    # energy_node_drift_speed=[0.01, 0.02, 0.03, 0.04, 0.05], ---------------------------
+    nebula_tile_drift_speed=[0],
+    energy_node_drift_speed=[0],
     energy_node_drift_magnitude=list(range(3, 6)),
 )
