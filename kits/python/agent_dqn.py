@@ -4,6 +4,7 @@ import torch.optim as optim
 import numpy as np
 from collections import deque
 import random
+import wandb
 
 class DQN(nn.Module):
     def __init__(self, input_size, hidden_size, output_size):
@@ -138,32 +139,35 @@ class Agent:
                     self.relic_node_positions.append(observed_relic_node_positions[id])
 
 
-            if random.random() < self.epsilon and self.training:
-                if len(self.relic_node_positions) > 0:
-                    nearest_relic_node_position = self.relic_node_positions[0]
-                    unit_pos = unit_positions[unit_id]
-                    manhattan_distance = abs(unit_pos[0] - nearest_relic_node_position[0]) + abs(unit_pos[1] - nearest_relic_node_position[1])
-
-                    # if close to the relic node we want to move randomly around it and hope to gain points
-                    if manhattan_distance <= 4:
-                        random_direction = np.random.randint(0, 5)
-                        actions[unit_id] = [random_direction, 0, 0]
-                    else:
-                        # otherwise we want to move towards the relic node
-                        actions[unit_id] = [direction_to(unit_pos, nearest_relic_node_position), 0, 0]
+            # if random.random() < self.epsilon and self.training:
+            #     if len(self.relic_node_positions) > 0:
+            #         nearest_relic_node_position = self.relic_node_positions[0]
+            #         unit_pos = unit_positions[unit_id]
+            #         manhattan_distance = abs(unit_pos[0] - nearest_relic_node_position[0]) + abs(unit_pos[1] - nearest_relic_node_position[1])
+            #
+            #         # if close to the relic node we want to move randomly around it and hope to gain points
+            #         if manhattan_distance <= 4:
+            #             random_direction = np.random.randint(0, 5)
+            #             actions[unit_id] = [random_direction, 0, 0]
+            #         else:
+            #             # otherwise we want to move towards the relic node
+            #             actions[unit_id] = [direction_to(unit_pos, nearest_relic_node_position), 0, 0]
+            #     else:
+            #         #pick a random location on the map for the unit to explore
+            #         unit_pos = unit_positions[unit_id]
+            #         rand_loc = (np.random.randint(0, self.env_cfg["map_width"]), np.random.randint(0, self.env_cfg["map_height"]))
+            #         self.unit_explore_locations[unit_id] = rand_loc
+            #         # using the direction_to tool we can generate a direction that makes the unit move to the saved location
+            #         # note that the first index of each unit's action represents the type of action. See specs for more details
+            #         actions[unit_id] = [direction_to(unit_pos, self.unit_explore_locations[unit_id]), 0, 0]
+            # else:
+            with torch.no_grad():
+                q_values = self.policy_net(state)
+                if random.uniform(0.0,1.0) < self.epsilon:
+                    action_type = np.random.choice(self.action_size)
                 else:
-                    #pick a random location on the map for the unit to explore
-                    unit_pos = unit_positions[unit_id]
-                    rand_loc = (np.random.randint(0, self.env_cfg["map_width"]), np.random.randint(0, self.env_cfg["map_height"]))
-                    self.unit_explore_locations[unit_id] = rand_loc
-                    # using the direction_to tool we can generate a direction that makes the unit move to the saved location
-                    # note that the first index of each unit's action represents the type of action. See specs for more details
-                    actions[unit_id] = [direction_to(unit_pos, self.unit_explore_locations[unit_id]), 0, 0]
-            else:
-                with torch.no_grad():
-                    q_values = self.policy_net(state)
                     action_type = q_values.argmax().item()
-                    print(f"Q-values: {q_values}\tAction_type: {action_type}")
+
                 if action_type == 5:  # Sap action
                     # Find closest enemy unit
                     opp_positions = obs["units"]["position"][self.opp_team_id]
@@ -182,11 +186,11 @@ class Agent:
                 else:
                     actions[unit_id] = [action_type, 0, 0]
 
-            print(f"Actions: {actions}")
+            print(f"Q-values: {q_values}\tAction: {actions[unit_id]}")
 
         return actions
 
-    def learn(self, step, last_obs, actions, obs, rewards, dones):
+    def learn(self, step, last_obs, actions, obs, rewards, dones, player):
         if not self.training or len(self.memory) < self.batch_size:
           return
 
@@ -206,6 +210,8 @@ class Agent:
         target_q_values = rewards + (1 - dones) * self.gamma * next_q_values
 
         loss = nn.MSELoss()(current_q_values.squeeze(), target_q_values)
+        loss_name = "loss_0" if player == "player_0" else "loss_1"
+        wandb.log({loss_name: loss})
 
         self.optimizer.zero_grad()
         loss.backward()
@@ -216,6 +222,8 @@ class Agent:
 
         #print(f"Loss: {loss.item()} Epsilon: {self.epsilon} Score: {rewards} Step: {step}")
         self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
+        epsilon_name = "epsilon_0" if player == "player_0" else "epsilon_1"
+        wandb.log({epsilon_name: self.epsilon})
 
     def save_model(self):
         torch.save({
@@ -239,6 +247,33 @@ class Agent:
 from luxai_s3.wrappers import LuxAIS3GymEnv
 
 def evaluate_agents(agent_1_cls=None, agent_2_cls=None, seed=42, training=True, games_to_play=3):
+    wandb.init(
+        entity="polrizzo",
+        project="LuxAI_S3",
+        dir="./",
+        # id: (str | None) = None,
+        name="test_wandb_local",
+        config={
+            "max_steps_in_match": 100,
+            "max_units": 10,
+            "fog_of_war": True,
+            "unit_sensor_range": 2,
+            "nebula_tile_energy_reduction": 0,
+            "nebula_tile_drift_speed": 0,
+            "energy_node_drift_speed": 0,
+            "energy_node_drift_magnitude": 5
+
+    },
+        # group: (str | None) = None,
+        # job_type: (str | None) = None,
+        # reinit: (bool | None) = None,
+        # resume: (bool | Literal['allow', 'never', 'must', 'auto'] | None) = None,
+        # resume_from: (str | None) = None,
+        # fork_from: (str | None) = None,
+        # save_code: (bool | None) = None,
+        # settings: (Settings | dict[str, Any] | None) = None
+    )
+
     env = LuxAIS3GymEnv(numpy_output=True)
     obs, info = env.reset(seed=seed)
 
@@ -253,8 +288,8 @@ def evaluate_agents(agent_1_cls=None, agent_2_cls=None, seed=42, training=True, 
         step = 0
         last_obs = None
         last_actions = None
-        print(f"{i}")
         while not game_done:
+            print(f"Game:{i} Step:{step}")
 
             actions = {}
 
@@ -267,6 +302,7 @@ def evaluate_agents(agent_1_cls=None, agent_2_cls=None, seed=42, training=True, 
 
             # Get actions
             for agent in [player_0, player_1]:
+                print(agent.player)
                 actions[agent.player] = agent.act(step=step, obs=obs[agent.player])
 
             if training:
@@ -275,10 +311,20 @@ def evaluate_agents(agent_1_cls=None, agent_2_cls=None, seed=42, training=True, 
             # Environment step
             obs, rewards ,terminated, truncated, info = env.step(actions)
             dones = {k: terminated[k] | truncated[k] for k in terminated}
+            points_0 = obs["player_0"]["team_points"][player_0.team_id]
+            energy_0 = obs["player_0"]["map_features"]["energy"]
+            energy_0_nn = energy_0[energy_0 > -1].sum() / (energy_0.shape[0] * energy_0.shape[1])
+            points_1 = obs["player_1"]["team_points"][player_1.team_id]
+            energy_1 = obs["player_1"]["map_features"]["energy"]
+            energy_1_nn = energy_1[energy_1 > -1].sum() / (energy_1.shape[0] * energy_1.shape[1])
             rewards = {
-                "player_0": obs["player_0"]["team_points"][player_0.team_id],
-                "player_1": obs["player_1"]["team_points"][player_1.team_id]
+                "player_0": points_0 + energy_0_nn,
+                "player_1": points_1 + energy_1_nn
             }
+            wandb.log({"reward_0": rewards["player_0"], "reward_1": rewards["player_1"]})
+            if step > 70:
+                print("ok")
+            print(f"rewards: {rewards}")
             # Store experiences and learn
             if training and last_obs is not None:
                 # Store experience for each unit
@@ -311,9 +357,9 @@ def evaluate_agents(agent_1_cls=None, agent_2_cls=None, seed=42, training=True, 
 
                 # Learn from experiences
                 player_0.learn(step, last_obs["player_0"], actions["player_0"],
-                             obs["player_0"], rewards["player_0"], dones["player_0"])
+                             obs["player_0"], rewards["player_0"], dones["player_0"], "player_0")
                 player_1.learn(step, last_obs["player_1"], actions["player_1"],
-                             obs["player_1"], rewards["player_1"], dones["player_1"])
+                             obs["player_1"], rewards["player_1"], dones["player_1"], "player_1")
 
             if dones["player_0"] or dones["player_1"]:
                 game_done = True
