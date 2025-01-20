@@ -376,3 +376,8 @@ def evaluate_agents(agent_1_cls=None, agent_2_cls=None, seed=42, training=True, 
 
 # Training
 #evaluate_agents(Agent ( Agent, training=True, games_to_play=250) # 250*5
+
+
+
+if __name__ == "__main__":
+    evaluate_agents()
