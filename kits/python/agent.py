@@ -13,8 +13,8 @@ from base import (
     get_opposite,
     is_team_sector,
 )
-from debug import show_map, show_energy_field, show_exploration_map
-from pathfinding import (
+from kits.python.debug import show_map, show_energy_field, show_exploration_map
+from kits.python.pathfinding import (
     astar,
     find_closest_target,
     nearby_positions,

@@ -5,60 +5,17 @@ import numpy as np
 from collections import deque
 import random
 import wandb
+from kits.python.lux.utils import direction_to
+from policy import DQN, ReplayBuffer
 
-class DQN(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size):
-        super(DQN, self).__init__()
-        self.network = nn.Sequential(
-            nn.Linear(input_size, hidden_size),
-            nn.ReLU(),
-            nn.Linear(hidden_size, hidden_size),
-            nn.ReLU(),
-            nn.Linear(hidden_size, output_size)
-        )
 
-    def forward(self, x):
-        return self.network(x)
-
-# direction (0 = center, 1 = up, 2 = right, 3 = down, 4 = left)
-def direction_to(src, target):
-    ds = target - src
-    dx = ds[0]
-    dy = ds[1]
-    if dx == 0 and dy == 0:
-        return 0
-    if abs(dx) > abs(dy):
-        if dx > 0:
-            return 2
-        else:
-            return 4
-    else:
-        if dy > 0:
-            return 3
-        else:
-            return 1
-
-class ReplayBuffer:
-    def __init__(self, capacity):
-        self.buffer = deque(maxlen=capacity)
-
-    def push(self, state, action, reward, next_state, done):
-        self.buffer.append((state, action, reward, next_state, done))
-
-    def sample(self, batch_size):
-        return random.sample(self.buffer, batch_size)
-
-    def __len__(self):
-        return len(self.buffer)
-
-class Agent:
-    def __init__(self, player: str, env_cfg, training=True) -> None:
+class AgentRl:
+    def __init__(self, player: str, env_cfg) -> None:
         self.player = player
         self.opp_player = "player_1" if self.player == "player_0" else "player_0"
         self.team_id = 0 if self.player == "player_0" else 1
         self.opp_team_id = 1 if self.team_id == 0 else 0
         self.env_cfg = env_cfg
-        self.training = training
 
         # DQN parameters
         self.state_size = 6  # unit_pos(2) + closest_relic(2) + unit_energy(1) + step(1)
@@ -66,7 +23,7 @@ class Agent:
         self.hidden_size = 128
         self.batch_size = 64
         self.gamma = 0.99
-        self.epsilon = 1.0
+        self.epsilon = 1.0  # change epsilon if not training
         self.epsilon_min = 0.01
         self.epsilon_decay = 0.995
         self.learning_rate = 0.0001
@@ -80,9 +37,6 @@ class Agent:
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=self.learning_rate)
         self.memory = ReplayBuffer(10000)
 
-        if not training:
-            self.load_model()
-            self.epsilon = 0.0
 
     def _state_representation(self, unit_pos, unit_energy, relic_nodes, step, relic_mask):
         if not relic_mask.any():
@@ -190,11 +144,9 @@ class Agent:
 
         return actions
 
-    def learn(self, step, last_obs, actions, obs, rewards, dones, player):
-        if not self.training or len(self.memory) < self.batch_size:
-          return
-
-
+    def learn(self, step, last_obs, actions, obs, rewards, dones, player, training=True):
+        if not training or len(self.memory) < self.batch_size:
+            return
         rewards = self.score
         batch = self.memory.sample(self.batch_size)
         states, actions, rewards, next_states, dones = zip(*batch)
@@ -240,144 +192,3 @@ class Agent:
             self.optimizer.load_state_dict(checkpoint['optimizer'])
         except FileNotFoundError:
             raise FileNotFoundError(f"No trained model found for {self.player}")
-
-##################################################################################
-##################################################################################
-
-from luxai_s3.wrappers import LuxAIS3GymEnv
-
-def evaluate_agents(agent_1_cls=None, agent_2_cls=None, seed=42, training=True, games_to_play=3):
-    wandb.init(
-        entity="polrizzo",
-        project="LuxAI_S3",
-        dir="./",
-        # id: (str | None) = None,
-        name="test_wandb_local",
-        config={
-            "max_steps_in_match": 100,
-            "max_units": 10,
-            "fog_of_war": True,
-            "unit_sensor_range": 2,
-            "nebula_tile_energy_reduction": 0,
-            "nebula_tile_drift_speed": 0,
-            "energy_node_drift_speed": 0,
-            "energy_node_drift_magnitude": 5
-
-    },
-        # group: (str | None) = None,
-        # job_type: (str | None) = None,
-        # reinit: (bool | None) = None,
-        # resume: (bool | Literal['allow', 'never', 'must', 'auto'] | None) = None,
-        # resume_from: (str | None) = None,
-        # fork_from: (str | None) = None,
-        # save_code: (bool | None) = None,
-        # settings: (Settings | dict[str, Any] | None) = None
-    )
-
-    env = LuxAIS3GymEnv(numpy_output=True)
-    obs, info = env.reset(seed=seed)
-
-    env_cfg = info["params"]
-
-    player_0 = Agent("player_0", info["params"], training=training)
-    player_1 = Agent("player_1", info["params"], training=training)
-
-    for i in range(games_to_play):
-        obs, info = env.reset()
-        game_done = False
-        step = 0
-        last_obs = None
-        last_actions = None
-        while not game_done:
-            print(f"Game:{i} Step:{step}")
-
-            actions = {}
-
-            # Store current observation for learning
-            if training:
-                last_obs = {
-                    "player_0": obs["player_0"].copy(),
-                    "player_1": obs["player_1"].copy()
-                }
-
-            # Get actions
-            for agent in [player_0, player_1]:
-                print(agent.player)
-                actions[agent.player] = agent.act(step=step, obs=obs[agent.player])
-
-            if training:
-                last_actions = actions.copy()
-
-            # Environment step
-            obs, rewards ,terminated, truncated, info = env.step(actions)
-            dones = {k: terminated[k] | truncated[k] for k in terminated}
-            points_0 = obs["player_0"]["team_points"][player_0.team_id]
-            energy_0 = obs["player_0"]["map_features"]["energy"]
-            energy_0_nn = energy_0[energy_0 > -1].sum() / (energy_0.shape[0] * energy_0.shape[1])
-            points_1 = obs["player_1"]["team_points"][player_1.team_id]
-            energy_1 = obs["player_1"]["map_features"]["energy"]
-            energy_1_nn = energy_1[energy_1 > -1].sum() / (energy_1.shape[0] * energy_1.shape[1])
-            rewards = {
-                "player_0": points_0 + energy_0_nn,
-                "player_1": points_1 + energy_1_nn
-            }
-            wandb.log({"reward_0": rewards["player_0"], "reward_1": rewards["player_1"]})
-            if step > 70:
-                print("ok")
-            print(f"rewards: {rewards}")
-            # Store experiences and learn
-            if training and last_obs is not None:
-                # Store experience for each unit
-                for agent in [player_0, player_1]:
-                    for unit_id in range(env_cfg["max_units"]):
-                        if obs[agent.player]["units_mask"][agent.team_id][unit_id]:
-                            current_state = agent._state_representation(
-                                last_obs[agent.player]["units"]["position"][agent.team_id][unit_id],
-                                last_obs[agent.player]["units"]["energy"][agent.team_id][unit_id],
-                                last_obs[agent.player]["relic_nodes"],
-                                step,
-                                last_obs[agent.player]["relic_nodes_mask"]
-                            )
-
-                            next_state = agent._state_representation(
-                                obs[agent.player]["units"]["position"][agent.team_id][unit_id],
-                                obs[agent.player]["units"]["energy"][agent.team_id][unit_id],
-                                obs[agent.player]["relic_nodes"],
-                                step + 1,
-                                obs[agent.player]["relic_nodes_mask"]
-                            )
-
-                            agent.memory.push(
-                                current_state,
-                                last_actions[agent.player][unit_id][0],
-                                rewards[agent.player],
-                                next_state,
-                                dones[agent.player]
-                            )
-
-                # Learn from experiences
-                player_0.learn(step, last_obs["player_0"], actions["player_0"],
-                             obs["player_0"], rewards["player_0"], dones["player_0"], "player_0")
-                player_1.learn(step, last_obs["player_1"], actions["player_1"],
-                             obs["player_1"], rewards["player_1"], dones["player_1"], "player_1")
-
-            if dones["player_0"] or dones["player_1"]:
-                game_done = True
-                if training:
-                    player_0.save_model()
-                    player_1.save_model()
-
-            step += 1
-
-    env.close()
-    #if training:
-    #  player_0.save_model()
-    #  player_1.save_model()
-
-# Training
-#evaluate_agents(Agent ( Agent, training=True, games_to_play=250) # 250*5
-
-
-
-if __name__ == "__main__":
-    evaluate_agents()

@@ -1,11 +1,11 @@
 from flax import struct
-import jax
+from luxai_s3.params import EnvParams
 
 MAP_TYPES = ["dev0", "random"]
 
 
 @struct.dataclass
-class EnvParamsCustom:
+class EnvParamsCustom(EnvParams):
     max_steps_in_match: int = 100
     map_type: int = 1
     """Map generation algorithm. Can change between games"""
@@ -16,7 +16,7 @@ class EnvParamsCustom:
     """number of matches to play in one episode"""
 
     # configs for units
-    max_units: int = 10  #16-----------------------
+    max_units: int = 16  #16-----------------------
     init_unit_energy: int = 100
     min_unit_energy: int = 0
     max_unit_energy: int = 400
