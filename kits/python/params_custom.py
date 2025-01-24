@@ -12,7 +12,7 @@ class EnvParamsCustom(EnvParams):
     map_width: int = 24
     map_height: int = 24
     num_teams: int = 2
-    match_count_per_episode: int = 1  #5-----------------------
+    match_count_per_episode: int = 5  #5-----------------------
     """number of matches to play in one episode"""
 
     # configs for units

@@ -10,3 +10,4 @@ venv/
 wandb/
 **.pth
 model_pytorch/
+**.yaml

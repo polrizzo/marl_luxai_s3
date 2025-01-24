@@ -1,39 +1,44 @@
-import json
 from datetime import datetime
-import flax.serialization
-import jax
-from click import option
-
 import wandb
 import random
+import yaml
 
-from luxai_s3 import LuxAIS3GymEnv
+
 from luxai_s3.state import EnvState, serialize_env_actions, serialize_env_states
-from luxai_s3.env import LuxAIS3Env
 from luxai_s3.wrappers import RecordEpisode, LuxAIS3GymEnv
 from params_custom import EnvParamsCustom
 from agent_rl import AgentRl
 from reward import get_reward
 
 if __name__ == "__main__":
+    now_str = datetime.now().strftime("%Y-%m-%d_%H:%M")
+    name_test = "local__" + now_str
 
+    # Env settings
     env = LuxAIS3GymEnv(numpy_output=True)
     env = RecordEpisode(env, save_dir="./replays")
-    # seed = random.randint(0, 100000)
+    # seed = random.randint(0, 1e9)
     seed = 0
     option = dict(params=EnvParamsCustom())
     obs, info = env.reset(seed=seed, options=option)
 
-    now_str = datetime.now().strftime("%Y-%m-%d_%H:%M")
-    name_test = "local__" + now_str
+    # Agents settings
+    with open("config_trainer.yaml", "r") as stream:
+        config_trainer = yaml.safe_load(stream)
+    player_0 = AgentRl("player_0", info["params"])
+    player_0.build_model(config_trainer)
+    player_1 = AgentRl("player_1", info["params"])
+    player_1.build_model(config_trainer)
 
+    # Wandb settings
+    wandb_config = {"env_config": info["full_params"], "trainer_config": config_trainer}
     wandb.init(
         entity="polrizzo",
         project="LuxAI_S3",
         dir="./",
         # id: (str | None) = None,
         name=name_test,
-        config= info["full_params"],
+        config=info["full_params"],
         # group: (str | None) = None,
         # job_type: (str | None) = None,
         # reinit: (bool | None) = None,
@@ -43,13 +48,7 @@ if __name__ == "__main__":
         # save_code: (bool | None) = None,
         # settings: (Settings | dict[str, Any] | None) = None
     )
-
-    # Initialize Agents
-    player_0 = AgentRl("player_0", info["params"])
-    player_1 = AgentRl("player_1", info["params"])
-    training = True
-    print("Starting Training") if training else print("Starting Testing")
-
+    print("Starting Training") if config_trainer["training"] else print("Starting Testing")
     for i in range(info["params"]["match_count_per_episode"]):
         # reset at each match
         seed = 0
@@ -67,7 +66,7 @@ if __name__ == "__main__":
             actions = {}
 
             # Store current observation for learning
-            if training:
+            if config_trainer["training"]:
                 last_obs = {
                     "player_0": obs["player_0"].copy(),
                     "player_1": obs["player_1"].copy()
@@ -78,7 +77,7 @@ if __name__ == "__main__":
                 print(agent.player)
                 actions[agent.player] = agent.act(step=step, obs=obs[agent.player])
 
-            if training:
+            if config_trainer["training"]:
                 last_actions = actions.copy()
 
             # Environment step
@@ -93,7 +92,7 @@ if __name__ == "__main__":
                 pass
             print(f"rewards: {rewards}")
             # Store experiences and learn
-            if training and last_obs is not None:
+            if config_trainer["training"] and last_obs is not None:
                 # Store experience for each unit
                 for agent in [player_0, player_1]:
                     for unit_id in range(env_cfg["max_units"]):
@@ -124,13 +123,13 @@ if __name__ == "__main__":
 
                 # Learn from experiences
                 player_0.learn(step, last_obs["player_0"], actions["player_0"],
-                               obs["player_0"], rewards["player_0"], dones["player_0"], "player_0", training)
+                               obs["player_0"], rewards["player_0"], dones["player_0"], "player_0", config_trainer["training"])
                 player_1.learn(step, last_obs["player_1"], actions["player_1"],
-                               obs["player_1"], rewards["player_1"], dones["player_1"], "player_1", training)
+                               obs["player_1"], rewards["player_1"], dones["player_1"], "player_1", config_trainer["training"])
 
             if dones["player_0"] or dones["player_1"]:
                 game_done = True
-                if training:
+                if config_trainer["training"]:
                     player_0.save_model()
                     player_1.save_model()
 

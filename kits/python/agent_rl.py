@@ -11,34 +11,42 @@ from policy import DQN, ReplayBuffer
 
 class AgentRl:
     def __init__(self, player: str, env_cfg) -> None:
+        """
+        Baseline init.
+        """
         self.player = player
         self.opp_player = "player_1" if self.player == "player_0" else "player_0"
         self.team_id = 0 if self.player == "player_0" else 1
         self.opp_team_id = 1 if self.team_id == 0 else 0
         self.env_cfg = env_cfg
 
-        # DQN parameters
-        self.state_size = 6  # unit_pos(2) + closest_relic(2) + unit_energy(1) + step(1)
-        self.action_size = 6  # stay, up, right, down, left, sap
-        self.hidden_size = 128
-        self.batch_size = 64
-        self.gamma = 0.99
-        self.epsilon = 1.0  # change epsilon if not training
-        self.epsilon_min = 0.01
-        self.epsilon_decay = 0.995
-        self.learning_rate = 0.0001
-
-        # Initialize networks
+    def build_model(self, config: dict):
+        """
+        Build model with config, after baseline initialization.
+        """
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.policy_net = DQN(self.state_size, self.hidden_size, self.action_size).to(self.device)
-        self.target_net = DQN(self.state_size, self.hidden_size, self.action_size).to(self.device)
-        self.target_net.load_state_dict(self.policy_net.state_dict())
-
-        self.optimizer = optim.Adam(self.policy_net.parameters(), lr=self.learning_rate)
+        self.batch_size = config["hyper"]["batch_size"]
+        self.epsilon = config["hyper"]["epsilon"]
+        self.epsilon_decay = config["hyper"]["epsilon_decay"]
+        self.epsilon_min = config["hyper"]["epsilon_min"]
+        self.eval = config["hyper"]["eval"]
+        self.gamma = config["hyper"]["gamma"]
+        self.lr_rate = config["hyper"]["lr_rate"]
         self.memory = ReplayBuffer(10000)
 
+        self.action_size = config["dqn"]["fc"]["action_size"]
+        self.policy_net = DQN(config["dqn"]["fc"]["state_size"], config["dqn"]["fc"]["hidden_size"],
+                              config["dqn"]["fc"]["action_size"]).to(self.device)
+        self.target_net = DQN(config["dqn"]["fc"]["state_size"], config["dqn"]["fc"]["hidden_size"],
+                              config["dqn"]["fc"]["action_size"]).to(self.device)
+        self.optimizer = optim.Adam(self.policy_net.parameters(), lr=self.lr_rate)
+        if config["resume"]:
+            self.load_model(config)
 
     def _state_representation(self, unit_pos, unit_energy, relic_nodes, step, relic_mask):
+        """
+        Representation of input state to policy net.
+        """
         if not relic_mask.any():
             closest_relic = np.array([-1, -1])
         else:
@@ -55,6 +63,9 @@ class AgentRl:
         return torch.FloatTensor(state).to(self.device)
 
     def act(self, step: int, obs, remainingOverageTime: int = 60):
+        """
+        Baseline act.
+        """
         unit_mask = np.array(obs["units_mask"][self.team_id])
         unit_positions = np.array(obs["units"]["position"][self.team_id])
         unit_energys = np.array(obs["units"]["energy"][self.team_id])
@@ -63,9 +74,6 @@ class AgentRl:
         self.score = np.array(obs["team_points"][self.team_id])
         observed_relic_node_positions = np.array(obs["relic_nodes"]) # shape (max_relic_nodes, 2)
         observed_relic_nodes_mask = np.array(obs["relic_nodes_mask"]) # shape (max_relic_nodes, )
-
-       # if step % 500 == 0:
-          #print(f"memory:  {len(self.memory)}")
 
         actions = np.zeros((self.env_cfg["max_units"], 3), dtype=int)
         available_units = np.where(unit_mask)[0]
@@ -92,35 +100,11 @@ class AgentRl:
                     self.discovered_relic_nodes_ids.add(id)
                     self.relic_node_positions.append(observed_relic_node_positions[id])
 
-
-            # if random.random() < self.epsilon and self.training:
-            #     if len(self.relic_node_positions) > 0:
-            #         nearest_relic_node_position = self.relic_node_positions[0]
-            #         unit_pos = unit_positions[unit_id]
-            #         manhattan_distance = abs(unit_pos[0] - nearest_relic_node_position[0]) + abs(unit_pos[1] - nearest_relic_node_position[1])
-            #
-            #         # if close to the relic node we want to move randomly around it and hope to gain points
-            #         if manhattan_distance <= 4:
-            #             random_direction = np.random.randint(0, 5)
-            #             actions[unit_id] = [random_direction, 0, 0]
-            #         else:
-            #             # otherwise we want to move towards the relic node
-            #             actions[unit_id] = [direction_to(unit_pos, nearest_relic_node_position), 0, 0]
-            #     else:
-            #         #pick a random location on the map for the unit to explore
-            #         unit_pos = unit_positions[unit_id]
-            #         rand_loc = (np.random.randint(0, self.env_cfg["map_width"]), np.random.randint(0, self.env_cfg["map_height"]))
-            #         self.unit_explore_locations[unit_id] = rand_loc
-            #         # using the direction_to tool we can generate a direction that makes the unit move to the saved location
-            #         # note that the first index of each unit's action represents the type of action. See specs for more details
-            #         actions[unit_id] = [direction_to(unit_pos, self.unit_explore_locations[unit_id]), 0, 0]
-            # else:
             with torch.no_grad():
-                q_values = self.policy_net(state)
-                if random.uniform(0.0,1.0) < self.epsilon:
+                if random.random() < self.epsilon:
                     action_type = np.random.choice(self.action_size)
                 else:
-                    action_type = q_values.argmax().item()
+                    action_type = self.policy_net(state).argmax().item()
 
                 if action_type == 5:  # Sap action
                     # Find closest enemy unit
@@ -140,14 +124,13 @@ class AgentRl:
                 else:
                     actions[unit_id] = [action_type, 0, 0]
 
-            print(f"Q-values: {q_values}\tAction: {actions[unit_id]}")
+            print(f"Q-values: {self.policy_net(state)}\tAction: {actions[unit_id]}")
 
         return actions
 
     def learn(self, step, last_obs, actions, obs, rewards, dones, player, training=True):
         if not training or len(self.memory) < self.batch_size:
             return
-        rewards = self.score
         batch = self.memory.sample(self.batch_size)
         states, actions, rewards, next_states, dones = zip(*batch)
 
@@ -182,11 +165,12 @@ class AgentRl:
             'policy_net': self.policy_net.state_dict(),
             'target_net': self.target_net.state_dict(),
             'optimizer': self.optimizer.state_dict()
-        }, f'dqn_model_{self.player}.pth')
+        }, f'model_pytorch/dqn_model_{self.player}.pth')
 
-    def load_model(self):
+    def load_model(self, config: dict):
         try:
-            checkpoint = torch.load(f'dqn_model_{self.player}.pth')
+            path = config["path_models"] + config["saved_model_0"] if self.player == "player_0" else config["path_models"] + config["saved_model_1"]
+            checkpoint = torch.load(path)
             self.policy_net.load_state_dict(checkpoint['policy_net'])
             self.target_net.load_state_dict(checkpoint['target_net'])
             self.optimizer.load_state_dict(checkpoint['optimizer'])
