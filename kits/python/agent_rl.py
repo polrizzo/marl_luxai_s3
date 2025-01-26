@@ -124,7 +124,7 @@ class AgentRl:
                 else:
                     actions[unit_id] = [action_type, 0, 0]
 
-            print(f"Q-values: {self.policy_net(state)}\tAction: {actions[unit_id]}")
+            # print(f"Q-values: {self.policy_net(state)}\tAction: {actions[unit_id]}") ----------------------------
 
         return actions
 
@@ -155,7 +155,7 @@ class AgentRl:
         if step % 100 == 0:
             self.target_net.load_state_dict(self.policy_net.state_dict())
 
-        #print(f"Loss: {loss.item()} Epsilon: {self.epsilon} Score: {rewards} Step: {step}")
+        # print(f"Loss: {loss.item()} Epsilon: {self.epsilon} Score: {rewards} Step: {step}")
         self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
         epsilon_name = "epsilon_0" if player == "player_0" else "epsilon_1"
         wandb.log({epsilon_name: self.epsilon})

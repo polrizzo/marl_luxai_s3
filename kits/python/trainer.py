@@ -16,8 +16,8 @@ if __name__ == "__main__":
 
     # Env settings
     env = LuxAIS3GymEnv(numpy_output=True)
-    env = RecordEpisode(env, save_dir="./replays")
-    # seed = random.randint(0, 1e9)
+    env = RecordEpisode(env, save_dir="./replays", save_on_reset=False)
+    # seed = random.randint(0, 1000000000)
     seed = 0
     option = dict(params=EnvParamsCustom())
     obs, info = env.reset(seed=seed, options=option)
@@ -48,8 +48,16 @@ if __name__ == "__main__":
         # save_code: (bool | None) = None,
         # settings: (Settings | dict[str, Any] | None) = None
     )
+    wandb.define_metric("step")
+    wandb.define_metric("epsilon_0", step_metric="step")
+    wandb.define_metric("epsilon_1", step_metric="step")
+    wandb.define_metric("loss_0", step_metric="step")
+    wandb.define_metric("loss_1", step_metric="step")
+    wandb.define_metric("reward_0", step_metric="step")
+    wandb.define_metric("reward_1", step_metric="step")
+
     print("Starting Training") if config_trainer["training"] else print("Starting Testing")
-    for i in range(info["params"]["match_count_per_episode"]):
+    for i in range(1):
         # reset at each match
         seed = 0
         option = {"params": EnvParamsCustom()}
@@ -62,7 +70,7 @@ if __name__ == "__main__":
         last_actions = None
         while not game_done:
             print(f"Game:{i} Step:{step}")
-
+            wandb.log({"step": step})
             actions = {}
 
             # Store current observation for learning
@@ -74,7 +82,7 @@ if __name__ == "__main__":
 
             # Get actions
             for agent in [player_0, player_1]:
-                print(agent.player)
+                # print(agent.player) -------------------------------------
                 actions[agent.player] = agent.act(step=step, obs=obs[agent.player])
 
             if config_trainer["training"]:
@@ -88,9 +96,8 @@ if __name__ == "__main__":
                 "player_1": get_reward(type_reward="points_exploration", obs=obs["player_1"], player=1)
             }
             wandb.log({"reward_0": rewards["player_0"], "reward_1": rewards["player_1"]})
-            if step > 70:  # debug purpose
-                pass
-            print(f"rewards: {rewards}")
+
+            # print(f"rewards: {rewards}") ---------------------------------------
             # Store experiences and learn
             if config_trainer["training"] and last_obs is not None:
                 # Store experience for each unit
