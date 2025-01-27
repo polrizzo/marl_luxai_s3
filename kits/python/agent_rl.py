@@ -5,7 +5,7 @@ import numpy as np
 from collections import deque
 import random
 import wandb
-from kits.python.lux.utils import direction_to
+from datetime import datetime
 from policy import DQN, ReplayBuffer
 
 
@@ -42,6 +42,9 @@ class AgentRl:
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=self.lr_rate)
         if config["resume"]:
             self.load_model(config)
+
+    def update_env_cfg(self, new_cfg):
+        self.env_cfg = new_cfg
 
     def _state_representation(self, unit_pos, unit_energy, relic_nodes, step, relic_mask):
         """
@@ -123,9 +126,66 @@ class AgentRl:
                         actions[unit_id] = [0, 0, 0]  # Stay if no valid targets
                 else:
                     actions[unit_id] = [action_type, 0, 0]
+        return actions
 
-            # print(f"Q-values: {self.policy_net(state)}\tAction: {actions[unit_id]}") ----------------------------
+    def predict(self, step: int, obs, remainingOverageTime: int = 60):
+        """
+        Prediction with target net.
+        """
+        unit_mask = np.array(obs["units_mask"][self.team_id])
+        unit_positions = np.array(obs["units"]["position"][self.team_id])
+        unit_energys = np.array(obs["units"]["energy"][self.team_id])
+        relic_nodes = np.array(obs["relic_nodes"])
+        relic_mask = np.array(obs["relic_nodes_mask"])
+        self.score = np.array(obs["team_points"][self.team_id])
+        observed_relic_node_positions = np.array(obs["relic_nodes"])  # shape (max_relic_nodes, 2)
+        observed_relic_nodes_mask = np.array(obs["relic_nodes_mask"])  # shape (max_relic_nodes, )
 
+        actions = np.zeros((self.env_cfg["max_units"], 3), dtype=int)
+        available_units = np.where(unit_mask)[0]
+
+        for unit_id in available_units:
+            state = self._state_representation(
+                unit_positions[unit_id],
+                unit_energys[unit_id],
+                relic_nodes,
+                step,
+                relic_mask
+            )
+
+            # action_type = random.randrange(self.action_size)
+            self.unit_explore_locations = dict()
+            self.relic_node_positions = []
+            self.discovered_relic_nodes_ids = set()
+
+            # visible relic nodes
+            visible_relic_node_ids = set(np.where(observed_relic_nodes_mask)[0])
+            # save any new relic nodes that we discover for the rest of the game.
+            for id in visible_relic_node_ids:
+                if id not in self.discovered_relic_nodes_ids:
+                    self.discovered_relic_nodes_ids.add(id)
+                    self.relic_node_positions.append(observed_relic_node_positions[id])
+
+            with torch.no_grad():
+                action_type = self.target_net(state).argmax().item()
+
+                if action_type == 5:  # Sap action
+                    # Find closest enemy unit
+                    opp_positions = obs["units"]["position"][self.opp_team_id]
+                    opp_mask = obs["units_mask"][self.opp_team_id]
+                    valid_targets = []
+
+                    for opp_id, pos in enumerate(opp_positions):
+                        if opp_mask[opp_id] and pos[0] != -1:
+                            valid_targets.append(pos)
+
+                    if valid_targets:
+                        target_pos = valid_targets[0]  # Choose first valid target
+                        actions[unit_id] = [5, target_pos[0], target_pos[1]]
+                    else:
+                        actions[unit_id] = [0, 0, 0]  # Stay if no valid targets
+                else:
+                    actions[unit_id] = [action_type, 0, 0]
         return actions
 
     def learn(self, step, last_obs, actions, obs, rewards, dones, player, training=True):
@@ -152,21 +212,21 @@ class AgentRl:
         loss.backward()
         self.optimizer.step()
 
-        if step % 100 == 0:
-            self.target_net.load_state_dict(self.policy_net.state_dict())
-
+        # Update target network and decrease epsilon after every match
         if step % 504 == 0:
+            self.target_net.load_state_dict(self.policy_net.state_dict())
             self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
-
-        epsilon_name = "epsilon_0" if player == "player_0" else "epsilon_1"
-        wandb.log({epsilon_name: self.epsilon})
+            epsilon_name = "epsilon_0" if player == "player_0" else "epsilon_1"
+            wandb.log({epsilon_name: self.epsilon})
 
     def save_model(self):
+        now_str = datetime.now().strftime("%Y-%m-%d_%H:%M")
+        name_model = "dqn_" + self.player + now_str
         torch.save({
             'policy_net': self.policy_net.state_dict(),
             'target_net': self.target_net.state_dict(),
             'optimizer': self.optimizer.state_dict()
-        }, f'model_pytorch/dqn_model_{self.player}.pth')
+        }, f'model_pytorch/{name_model}.pth')
 
     def load_model(self, config: dict):
         try:
