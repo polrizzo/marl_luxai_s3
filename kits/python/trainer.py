@@ -10,9 +10,6 @@ from agent_rl import AgentRl
 from reward import get_reward
 
 if __name__ == "__main__":
-    now_str = datetime.now().strftime("%Y-%m-%d_%H:%M")
-    name_test = "local__" + now_str
-
     # Env settings
     env = LuxAIS3GymEnv(numpy_output=True)
     seed = random.randint(0, 1000000000)
@@ -28,6 +25,9 @@ if __name__ == "__main__":
     player_0.build_model(config_trainer)
     player_1 = AgentRl("player_1", info["params"])
     player_1.build_model(config_trainer)
+
+    now_str = datetime.now().strftime("%Y-%m-%d_%H:%M")
+    name_test = "local__" + now_str if config_trainer["local"] == "true" else "remote__" + now_str
 
     # Wandb settings
     wandb.init(
@@ -57,7 +57,7 @@ if __name__ == "__main__":
     wandb.define_metric("reward_0", step_metric="step_total")
     wandb.define_metric("reward_1", step_metric="step_total")
 
-    print("Starting Training") if config_trainer["training"] else print("Starting Testing")
+    print("Starting Training") if config_trainer["training"] == "true" else print("Starting Testing")
     # for i in range(config_trainer["num_games"]):
     for i in range(1):
         step = 0
@@ -197,5 +197,6 @@ if __name__ == "__main__":
                     print(obs["player_0"]["team_wins"])
             name_eval = "./replays/game_" + str((i + 1) // 200) + ".json"
             env_eval.save_episode(save_path=name_eval)
+            env_eval.close()
 
     env.close()
