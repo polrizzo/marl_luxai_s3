@@ -1,4 +1,5 @@
 import random
+import os
 from datetime import datetime
 import wandb
 import yaml
@@ -42,8 +43,9 @@ if __name__ == "__main__":
         # resume: (bool | Literal['allow', 'never', 'must', 'auto'] | None) = None,
         # resume_from: (str | None) = None, # fork_from: (str | None) = None, # save_code: (bool | None) = None,
     )
-    wandb.define_metric("games")
-    wandb.define_metric("seed", step_metric="games")
+    wandb.define_metric("total_games")
+    wandb.define_metric("seed", step_metric="total_games")
+    wandb.define_metric("winner_final", step_metric="total_games")
     wandb.define_metric("step_total")
     wandb.define_metric("step", step_metric="step_total")
     wandb.define_metric("epsilon_0", step_metric="step_total")
@@ -54,8 +56,6 @@ if __name__ == "__main__":
     wandb.define_metric("points_1", step_metric="step_total")
     wandb.define_metric("reward_0", step_metric="step_total")
     wandb.define_metric("reward_1", step_metric="step_total")
-    wandb.define_metric("winner_local", step_metric="step_total")
-    wandb.define_metric("winner_final", step_metric="step_total")
 
     print("Starting Training") if config_trainer["training"] else print("Starting Testing")
     # for i in range(config_trainer["num_games"]):
@@ -71,7 +71,6 @@ if __name__ == "__main__":
         obs, info = env.reset(seed=seed)
         player_0.update_env_cfg(info["params"])
         player_1.update_env_cfg(info["params"])
-        wandb.log({"total_games": i, "seed": seed})
 
         while not game_done:
             actions = {}
@@ -145,7 +144,58 @@ if __name__ == "__main__":
 
             step += 1
             step_total += 1
-        win_p0 = obs["player_0"]["team_wins"][0]
-        win_p1 = obs["player_0"]["team_wins"][1]
-        print(f"Game:{i} --- Player_0: {win_p0}   Player_1: {win_p1}")
+        winner = obs["player_0"]["team_wins"][0] - obs["player_0"]["team_wins"][1]
+        wandb.log({"total_games": i, "seed": seed,
+                   "winner": 1 if winner > 0 else -1})
+
+        # Eval phase every 200 games
+        # if (i + 1) % 200 == 0:
+        if i  == 0:
+            game_done = False
+            last_obs = None
+            last_actions = None
+            last_points = np.array([0, 0])
+            # Setup env
+            seed = random.randint(0, 1000000000)
+            env_eval = RecordEpisode(env=env, save_dir="./replays/", save_on_reset=False, save_on_close=False)
+            obs, info = env_eval.reset(seed=seed)
+            player_0.update_env_cfg(info["params"])
+            player_1.update_env_cfg(info["params"])
+
+            while not game_done:
+                actions = {}
+
+                # Store current observation for learning
+                last_obs = {
+                    "player_0": obs["player_0"].copy(),
+                    "player_1": obs["player_1"].copy()
+                }
+
+                # Get actions + store current actions for learning
+                for agent in [player_0, player_1]:
+                    actions[agent.player] = agent.predict(step=step, obs=obs[agent.player])
+                last_actions = actions.copy()
+
+                # Environment step + reward log
+                obs, rewards, terminated, truncated, info = env_eval.step(actions)
+                dones = {k: terminated[k] | truncated[k] for k in terminated}
+                rewards = {
+                    "player_0": get_reward(type_reward="delta_points_exploration", obs=obs["player_0"], player=0,
+                                           last_points=last_points),
+                    "player_1": get_reward(type_reward="points_exploration", obs=obs["player_1"], player=1,
+                                           last_points=last_points)
+                }
+
+                # update last points (if first step of match, set [0,0])
+                if (step + 2) % 101 == 0:
+                    last_points = np.array([0, 0])
+                else:
+                    last_points = obs["player_0"]["team_points"]
+
+                if dones["player_0"] or dones["player_1"]:
+                    game_done = True
+                    print(obs["player_0"]["team_wins"])
+            name_eval = "./replays/game_" + str((i + 1) // 200) + ".json"
+            env_eval.save_episode(save_path=name_eval)
+
     env.close()
