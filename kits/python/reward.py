@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def get_reward(type_reward: str, obs: dict, player: int, last_points: np.array()) -> float:
+def get_reward(type_reward: str, obs: dict, player: int, last_points: np.array) -> float:
     if type_reward == "only_points":
         return reward_points(obs, player)
     elif type_reward == "points_exploration":
@@ -20,12 +20,12 @@ def reward_points(obs: dict, player: int) -> float:
     """
     return obs["team_points"][player]
 
-def reward_delta_points(obs:dict, player: int, last_points: np.array()) -> float:
+def reward_delta_points(obs:dict, player: int, last_points: np.array) -> float:
     """
     Return (points score) - (previous point score).
     """
     delta = obs["team_points"] - last_points
-    return delta[player]
+    return float(delta[player])
 
 def reward_exploration(obs: dict) -> float:
     """

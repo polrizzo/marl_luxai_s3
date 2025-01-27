@@ -33,10 +33,12 @@ if __name__ == "__main__":
         entity="polrizzo",
         project="LuxAI_S3",
         dir="./",
-        # id: (str | None) = None, # settings: (Settings | dict[str, Any] | None) = None
         name=name_test,
         config=config_trainer,
-        # group: (str | None) = None, # job_type: (str | None) = None, # reinit: (bool | None) = None,
+        group= config_trainer["type_policy"],
+        job_type= "training" if config_trainer["training"] == "true" else "testing",
+        # id: (str | None) = None, # settings: (Settings | dict[str, Any] | None) = None
+        # reinit: (bool | None) = None,
         # resume: (bool | Literal['allow', 'never', 'must', 'auto'] | None) = None,
         # resume_from: (str | None) = None, # fork_from: (str | None) = None, # save_code: (bool | None) = None,
     )
@@ -48,6 +50,8 @@ if __name__ == "__main__":
     wandb.define_metric("epsilon_1", step_metric="step_total")
     wandb.define_metric("loss_0", step_metric="step_total")
     wandb.define_metric("loss_1", step_metric="step_total")
+    wandb.define_metric("points_0", step_metric="step_total")
+    wandb.define_metric("points_1", step_metric="step_total")
     wandb.define_metric("reward_0", step_metric="step_total")
     wandb.define_metric("reward_1", step_metric="step_total")
     wandb.define_metric("winner_local", step_metric="step_total")
@@ -87,12 +91,17 @@ if __name__ == "__main__":
             obs, rewards, terminated, truncated, info = env.step(actions)
             dones = {k: terminated[k] | truncated[k] for k in terminated}
             rewards = {
-                "player_0": get_reward(type_reward="only_points", obs=obs["player_0"], player=0, last_points=last_points),
+                "player_0": get_reward(type_reward="delta_points_exploration", obs=obs["player_0"], player=0, last_points=last_points),
                 "player_1": get_reward(type_reward="points_exploration", obs=obs["player_1"], player=1, last_points=last_points)
             }
             wandb.log({"step": step, "step_total": step_total,
+                       "points_0": obs["player_0"]["team_points"][0], "points_1": obs["player_0"]["team_points"][1],
                        "reward_0": rewards["player_0"], "reward_1": rewards["player_1"]})
-            last_points = obs["player_0"]["team_points"]
+            # update last points (if first step of match, set [0,0])
+            if (step + 2) % 101 == 0:
+                last_points = np.array([0, 0])
+            else:
+                last_points = obs["player_0"]["team_points"]
 
             # Store experience for each player's unit and learn
             for agent in [player_0, player_1]:
@@ -130,9 +139,9 @@ if __name__ == "__main__":
 
             if dones["player_0"] or dones["player_1"]:
                 game_done = True
-                if config_trainer["training"]:
-                    player_0.save_model()
-                    player_1.save_model()
+                # if config_trainer["training"]:
+                #     player_0.save_model()
+                #     player_1.save_model()
 
             step += 1
             step_total += 1
