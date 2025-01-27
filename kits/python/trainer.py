@@ -1,5 +1,4 @@
 import random
-import os
 from datetime import datetime
 import wandb
 import yaml
