@@ -44,9 +44,8 @@ if __name__ == "__main__":
     )
     wandb.define_metric("total_games")
     wandb.define_metric("seed", step_metric="total_games")
-    wandb.define_metric("winner_final", step_metric="total_games")
+    wandb.define_metric("winner", step_metric="total_games")
     wandb.define_metric("step_total")
-    wandb.define_metric("step", step_metric="step_total")
     wandb.define_metric("epsilon_0", step_metric="step_total")
     wandb.define_metric("epsilon_1", step_metric="step_total")
     wandb.define_metric("loss_0", step_metric="step_total")
@@ -57,10 +56,10 @@ if __name__ == "__main__":
     wandb.define_metric("reward_1", step_metric="step_total")
 
     print("Starting Training") if config_trainer["training"] else print("Starting Testing")
+    step_total = 0
     for i in range(config_trainer["hyper"]["num_games"]):
     # for i in range(1):
         step = 0
-        step_total = 0
         game_done = False
         last_obs = None
         last_actions = None
@@ -92,7 +91,7 @@ if __name__ == "__main__":
                 "player_0": get_reward(type_reward="delta_points_exploration", obs=obs["player_0"], player=0, last_points=last_points),
                 "player_1": get_reward(type_reward="points_exploration", obs=obs["player_1"], player=1, last_points=last_points)
             }
-            wandb.log({"step": step, "step_total": step_total,
+            wandb.log({"step_total": step_total,
                        "points_0": obs["player_0"]["team_points"][0], "points_1": obs["player_0"]["team_points"][1],
                        "reward_0": rewards["player_0"], "reward_1": rewards["player_1"]})
             # update last points (if first step of match, set [0,0])
