@@ -36,7 +36,7 @@ if __name__ == "__main__":
         name=name_test,
         config=config_trainer,
         group= config_trainer["type_policy"],
-        job_type= "training" if config_trainer["training"] == "true" else "testing",
+        job_type= "training" if config_trainer["training"] else "testing",
         # id: (str | None) = None, # settings: (Settings | dict[str, Any] | None) = None
         # reinit: (bool | None) = None,
         # resume: (bool | Literal['allow', 'never', 'must', 'auto'] | None) = None,
@@ -56,7 +56,7 @@ if __name__ == "__main__":
     wandb.define_metric("reward_0", step_metric="step_total")
     wandb.define_metric("reward_1", step_metric="step_total")
 
-    print("Starting Training") if config_trainer["training"] == "true" else print("Starting Testing")
+    print("Starting Training") if config_trainer["training"] else print("Starting Testing")
     for i in range(config_trainer["hyper"]["num_games"]):
     # for i in range(1):
         step = 0
