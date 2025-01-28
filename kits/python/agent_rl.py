@@ -6,7 +6,7 @@ from collections import deque
 import random
 import wandb
 from datetime import datetime
-from policy import DQN, ReplayBuffer
+from policy_dqn import DQN, ReplayBuffer
 
 
 class AgentRl:
@@ -188,7 +188,7 @@ class AgentRl:
                     actions[unit_id] = [action_type, 0, 0]
         return actions
 
-    def learn(self, step, last_obs, actions, obs, rewards, dones, player, training=True):
+    def learn(self, step, player, training=True):
         if not training or len(self.memory) < self.batch_size:
             return
         batch = self.memory.sample(self.batch_size)
@@ -212,12 +212,14 @@ class AgentRl:
         loss.backward()
         self.optimizer.step()
 
-        # Update target network and decrease epsilon after every match
-        if step % 504 == 0:
-            self.target_net.load_state_dict(self.policy_net.state_dict())
-            self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
-            epsilon_name = "epsilon_0" if player == "player_0" else "epsilon_1"
-            wandb.log({epsilon_name: self.epsilon})
+        # Update target network and decrease epsilon after every game
+        # if step % 504 == 0:
+        self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
+        epsilon_name = "epsilon_0" if player == "player_0" else "epsilon_1"
+        wandb.log({epsilon_name: self.epsilon})
+
+    def update_target_net(self):
+        self.target_net.load_state_dict(self.policy_net.state_dict())
 
     def save_model(self):
         now_str = datetime.now().strftime("%Y-%m-%d_%H:%M")
