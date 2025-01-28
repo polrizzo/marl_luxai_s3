@@ -57,7 +57,7 @@ if __name__ == "__main__":
     wandb.define_metric("reward_1", step_metric="step_total")
 
     print("Starting Training") if config_trainer["training"] == "true" else print("Starting Testing")
-    for i in range(config_trainer["num_games"]):
+    for i in range(config_trainer["hyper"]["num_games"]):
     # for i in range(1):
         step = 0
         step_total = 0
@@ -144,12 +144,12 @@ if __name__ == "__main__":
         wandb.log({"total_games": i, "seed": seed,
                    "winner": 1 if winner > 0 else -1})
         # Update target_net every 1/100 of num_games
-        if (i+1) % (config_trainer['num_games'] // 100) == 0:
+        if (i+1) % (config_trainer["hyper"]['num_games'] // 100) == 0:
             player_0.update_target_net()
             player_1.update_target_net()
 
         # Eval phase every 1/10 of num_games
-        if (i + 1) % (config_trainer['num_games'] // 10) == 0:
+        if (i + 1) % (config_trainer["hyper"]['num_games'] // 10) == 0:
         # if i  == 0:
             game_done = False
             last_obs = None
@@ -195,7 +195,7 @@ if __name__ == "__main__":
                 if dones["player_0"] or dones["player_1"]:
                     game_done = True
                     print(obs["player_0"]["team_wins"])
-            game_num = (i + 1) // (config_trainer['num_games'] // 10)
+            game_num = (i + 1) // (config_trainer["hyper"]['num_games'] // 10)
             name_eval = "./replays/game_" + str(game_num) + ".json"
             env_eval.save_episode(save_path=name_eval)
             env_eval.close()
