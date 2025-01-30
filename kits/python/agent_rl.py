@@ -1,5 +1,5 @@
 import torch
-import torch.nn as nn
+from torch.nn import MSELoss, HuberLoss
 import torch.optim as optim
 import numpy as np
 import random
@@ -23,24 +23,26 @@ class AgentRl:
         """
         Build model with config, after baseline initialization.
         """
+        if config["resume"]:
+            self.load_model(config[self.player]["saved_model"])
+            return
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # Hyperparameters
         self.batch_size = config["hyper"]["batch_size"]
         self.epsilon = config["hyper"]["epsilon"]
         self.epsilon_decay = config["hyper"]["epsilon_decay"]
         self.epsilon_min = config["hyper"]["epsilon_min"]
-        self.eval = config["hyper"]["eval"]
         self.gamma = config["hyper"]["gamma"]
         self.lr_rate = config["hyper"]["lr_rate"]
-        self.memory = ReplayBuffer(10000)
-
-        self.action_size = config["dqn"]["fc"]["action_size"]
-        self.policy_net = DQN(config["dqn"]["fc"]["state_size"], config["dqn"]["fc"]["hidden_size"],
-                              config["dqn"]["fc"]["action_size"]).to(self.device)
-        self.target_net = DQN(config["dqn"]["fc"]["state_size"], config["dqn"]["fc"]["hidden_size"],
-                              config["dqn"]["fc"]["action_size"]).to(self.device)
+        # Model parameters
+        self.action_size = config[self.player]["action_size"]
+        self.policy_net = DQN(config[self.player]["state_size"], config[self.player]["hidden_size"],
+                              config[self.player]["action_size"]).to(self.device)
+        self.target_net = DQN(config[self.player]["state_size"], config[self.player]["hidden_size"],
+                              config[self.player]["action_size"]).to(self.device)
+        self.memory = ReplayBuffer(config[self.player]["buffer"])
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=self.lr_rate)
-        if config["resume"]:
-            self.load_model(config)
+        self.loss = MSELoss() if config[self.player]["loss"] == 'MSE' else HuberLoss()
 
     def update_env_cfg(self, new_cfg):
         self.env_cfg = new_cfg
@@ -203,7 +205,7 @@ class AgentRl:
         next_q_values = self.target_net(next_states).max(1)[0].detach()
         target_q_values = rewards + (1 - dones) * self.gamma * next_q_values
 
-        loss = nn.MSELoss()(current_q_values.squeeze(), target_q_values)
+        loss = self.loss(current_q_values.squeeze(), target_q_values)
         loss_name = "loss_0" if player == "player_0" else "loss_1"
         wandb.log({loss_name: loss})
 
