@@ -4,7 +4,7 @@ def global_state(obs, relics_mask, relics_position, player: int, foe: int) -> tu
     """
     Return global state representation of current obs.
     """
-    state = np.zeros((5,24,24))
+    state = np.zeros((6,24,24))
     print(obs["units_mask"][player])
     # channel 0: player's units ---------------------------------
     for unit_id in np.where(obs["units_mask"][player])[0]:
@@ -49,11 +49,14 @@ def global_state(obs, relics_mask, relics_position, player: int, foe: int) -> tu
                 relics_mask[relic_id] = True
                 relics_position[relic_id, 0] = y
                 relics_position[relic_id, 1] = x
-
+    # channel 5: single unit's energy -----------------------------
+    # it will be updated later
     return state, relics_mask, relics_position
 
-def single_unit_state(energy, x, y) -> np.ndarray:
-    single_state = np.zeros((24,24))
-    single_state[x, y] = energy
-    return single_state
+def update_single_unit_energy(state_repr, energy, x, y) -> np.ndarray:
+    """
+    Add single unit's energy.
+    """
+    state_repr[5, x, y] = energy
+    return state_repr
 
