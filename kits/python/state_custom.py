@@ -57,6 +57,6 @@ def update_single_unit_energy(state_repr, energy, x, y) -> np.ndarray:
     """
     Add single unit's energy.
     """
-    state_repr[5, x, y] = energy
+    state_repr[5, x, y] = energy/400
     return state_repr
 
