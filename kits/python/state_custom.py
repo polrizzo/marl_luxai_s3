@@ -52,3 +52,8 @@ def global_state(obs, relics_mask, relics_position, player: int, foe: int) -> tu
 
     return state, relics_mask, relics_position
 
+def single_unit_state(energy, x, y) -> np.ndarray:
+    single_state = np.zeros((24,24))
+    single_state[x, y] = energy
+    return single_state
+
