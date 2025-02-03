@@ -194,61 +194,106 @@ class AgentRl:
         """
         Prediction with target net.
         """
-        unit_mask = np.array(obs["units_mask"][self.team_id])
-        unit_positions = np.array(obs["units"]["position"][self.team_id])
-        unit_energys = np.array(obs["units"]["energy"][self.team_id])
-        relic_nodes = np.array(obs["relic_nodes"])
-        relic_mask = np.array(obs["relic_nodes_mask"])
-        self.score = np.array(obs["team_points"][self.team_id])
-        observed_relic_node_positions = np.array(obs["relic_nodes"])  # shape (max_relic_nodes, 2)
-        observed_relic_nodes_mask = np.array(obs["relic_nodes_mask"])  # shape (max_relic_nodes, )
-
+        state = self.state_representation(obs)
         actions = np.zeros((self.env_cfg["max_units"], 3), dtype=int)
-        available_units = np.where(unit_mask)[0]
+        available_units = np.where(obs["units_mask"][self.team_id])[0]
+        available_opponents = np.where(obs["units_mask"][self.opp_player])[0]
 
         for unit_id in available_units:
-            state = self._state_representation(
-                unit_positions[unit_id],
-                unit_energys[unit_id],
-                relic_nodes,
-                step,
-                relic_mask
-            )
-
-            # action_type = random.randrange(self.action_size)
-            self.unit_explore_locations = dict()
-            self.relic_node_positions = []
-            self.discovered_relic_nodes_ids = set()
-
-            # visible relic nodes
-            visible_relic_node_ids = set(np.where(observed_relic_nodes_mask)[0])
-            # save any new relic nodes that we discover for the rest of the game.
-            for id in visible_relic_node_ids:
-                if id not in self.discovered_relic_nodes_ids:
-                    self.discovered_relic_nodes_ids.add(id)
-                    self.relic_node_positions.append(observed_relic_node_positions[id])
-
+            energy_single = obs["units"]["energy"][self.team_id, unit_id, 0]
+            # in obs, x & y are inverted
+            y_single = obs["units"]["position"][self.team_id, unit_id, 0]
+            x_single = obs["units"]["position"][self.team_id, unit_id, 1]
+            state_single = self.get_single_state(state.copy(), energy_single, x_single, y_single)
+            # call greedy policy or epsilon-random action
             with torch.no_grad():
-                action_type = self.target_net(state).argmax().item()
-
-                if action_type == 5:  # Sap action
-                    # Find closest enemy unit
-                    opp_positions = obs["units"]["position"][self.opp_team_id]
-                    opp_mask = obs["units_mask"][self.opp_team_id]
-                    valid_targets = []
-
-                    for opp_id, pos in enumerate(opp_positions):
-                        if opp_mask[opp_id] and pos[0] != -1:
-                            valid_targets.append(pos)
-
-                    if valid_targets:
-                        target_pos = valid_targets[0]  # Choose first valid target
-                        actions[unit_id] = [5, target_pos[0], target_pos[1]]
-                    else:
-                        actions[unit_id] = [0, 0, 0]  # Stay if no valid targets
+                action_type = self.policy_net(torch.from_numpy(state_single).to(self.device)).argmax().item()
+            # Sap action
+            if action_type == 5:
+                if available_opponents:
+                    for opp_unit_id in available_opponents:
+                        # in obs, x & y are inverted
+                        opp_y = obs["units"]["position"][self.opp_team_id, opp_unit_id, 0]
+                        opp_x = obs["units"]["position"][self.opp_team_id, opp_unit_id, 1]
+                        if abs(opp_x - x_single) <= self.env_cfg["unit_sap_range"] and abs(opp_y - y_single) <= \
+                                self.env_cfg["unit_sap_range"]:
+                            actions[unit_id] = [5, opp_y, opp_x]
+                            break
+                        else:
+                            continue
                 else:
-                    actions[unit_id] = [action_type, 0, 0]
+                    fake_delta_y = random.randint(0, self.env_cfg["unit_sap_range"] + 1)
+                    fake_delta_x = random.randint(0, self.env_cfg["unit_sap_range"] + 1)
+                    if (y_single + fake_delta_y) < self.env_cfg["max_width"]:
+                        target_y = y_single + fake_delta_y
+                    else:
+                        target_y = y_single - fake_delta_y
+                    if (x_single + fake_delta_x) < self.env_cfg["max_height"]:
+                        target_x = x_single + fake_delta_x
+                    else:
+                        target_x = x_single - fake_delta_x
+                    actions[unit_id] = [5, target_y, target_x]
         return actions
+
+    # def predict(self, step: int, obs, remainingOverageTime: int = 60):
+    #     """
+    #     Prediction with target net.
+    #     """
+    #     unit_mask = np.array(obs["units_mask"][self.team_id])
+    #     unit_positions = np.array(obs["units"]["position"][self.team_id])
+    #     unit_energys = np.array(obs["units"]["energy"][self.team_id])
+    #     relic_nodes = np.array(obs["relic_nodes"])
+    #     relic_mask = np.array(obs["relic_nodes_mask"])
+    #     self.score = np.array(obs["team_points"][self.team_id])
+    #     observed_relic_node_positions = np.array(obs["relic_nodes"])  # shape (max_relic_nodes, 2)
+    #     observed_relic_nodes_mask = np.array(obs["relic_nodes_mask"])  # shape (max_relic_nodes, )
+    #
+    #     actions = np.zeros((self.env_cfg["max_units"], 3), dtype=int)
+    #     available_units = np.where(unit_mask)[0]
+    #
+    #     for unit_id in available_units:
+    #         state = self._state_representation(
+    #             unit_positions[unit_id],
+    #             unit_energys[unit_id],
+    #             relic_nodes,
+    #             step,
+    #             relic_mask
+    #         )
+    #
+    #         # action_type = random.randrange(self.action_size)
+    #         self.unit_explore_locations = dict()
+    #         self.relic_node_positions = []
+    #         self.discovered_relic_nodes_ids = set()
+    #
+    #         # visible relic nodes
+    #         visible_relic_node_ids = set(np.where(observed_relic_nodes_mask)[0])
+    #         # save any new relic nodes that we discover for the rest of the game.
+    #         for id in visible_relic_node_ids:
+    #             if id not in self.discovered_relic_nodes_ids:
+    #                 self.discovered_relic_nodes_ids.add(id)
+    #                 self.relic_node_positions.append(observed_relic_node_positions[id])
+    #
+    #         with torch.no_grad():
+    #             action_type = self.target_net(state).argmax().item()
+    #
+    #             if action_type == 5:  # Sap action
+    #                 # Find closest enemy unit
+    #                 opp_positions = obs["units"]["position"][self.opp_team_id]
+    #                 opp_mask = obs["units_mask"][self.opp_team_id]
+    #                 valid_targets = []
+    #
+    #                 for opp_id, pos in enumerate(opp_positions):
+    #                     if opp_mask[opp_id] and pos[0] != -1:
+    #                         valid_targets.append(pos)
+    #
+    #                 if valid_targets:
+    #                     target_pos = valid_targets[0]  # Choose first valid target
+    #                     actions[unit_id] = [5, target_pos[0], target_pos[1]]
+    #                 else:
+    #                     actions[unit_id] = [0, 0, 0]  # Stay if no valid targets
+    #             else:
+    #                 actions[unit_id] = [action_type, 0, 0]
+    #     return actions
 
     def learn(self, step, player, training=True):
         if not training or len(self.memory) < self.batch_size:
