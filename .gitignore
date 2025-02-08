@@ -11,5 +11,6 @@ wandb/
 **.pth
 model_pytorch/
 **.yaml
-test_custom.py
-test_gym_custom.py
+other_code/
+kits/**/test_custom.py
+kits/**/test_gym_custom.py
