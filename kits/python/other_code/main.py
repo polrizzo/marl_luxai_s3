@@ -1,11 +1,9 @@
 import json
-from typing import Dict
 import sys
 from argparse import Namespace
 import os
-import numpy as np
 
-from agent import Agent
+from kits.python.other_code.agent import Agent
 # from lux.config import EnvConfig
 from lux.kit import from_json
 ### DO NOT REMOVE THE FOLLOWING CODE ###
