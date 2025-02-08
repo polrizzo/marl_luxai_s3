@@ -70,52 +70,46 @@ class AgentRl:
     def get_single_state(self, global_state, energy, x, y) -> np.ndarray:
         return update_single_unit_energy(global_state, energy, x, y)
 
-    def act(self, step: int, obs, remainingOverageTime: int = 60):
+    def act(self, state_single, x, y):
         """
-        Baseline act.
+        Get single state obs and output action.
         """
-        # State must be already stored with self.state_representation()
-        actions = np.zeros((self.env_cfg["max_units"], 3), dtype=int)
-        available_units = np.where(obs["units_mask"][self.team_id])[0]
-        available_opponents = np.where(obs["units_mask"][self.opp_team_id])[0]
-
-        for unit_id in available_units:
-            energy_single = obs["units"]["energy"][self.team_id, unit_id]
-            # in obs, x & y are inverted
-            y_single = obs["units"]["position"][self.team_id, unit_id, 0]
-            x_single = obs["units"]["position"][self.team_id, unit_id, 1]
-            state_single = self.get_single_state(self.state.copy(), energy_single, x_single, y_single)
-            # call greedy policy or epsilon-random action
-            with torch.no_grad():
-                if random.random() < self.epsilon:
-                    action_type = np.random.choice(self.action_size)
+        with torch.no_grad():
+            if random.random() < self.epsilon:
+                action_type = np.random.choice(self.action_size)
+            else:
+                action_type = self.policy_net(torch.from_numpy(state_single).to(self.device)).argmax().item()
+        # Sap action
+        if action_type == 5:
+            # check if state[1] (opponent channel) is full of zeros
+            sap_range = self.env_cfg["unit_sap_range"]
+            north = max(0, x - sap_range)
+            west = max(0, y - sap_range)
+            south = min(23, x + sap_range)
+            east = min(23, y + sap_range)
+            if np.any(state_single[1, north:south+1, west:east+1]):
+                # there is at leat one visible opponent
+                for target_x in range(north, south + 1):
+                    for target_y in range(west, east + 1):
+                        if state_single[1, target_x, target_y] > 0:
+                            # for env, x and y are inverted
+                            return [5, target_y, target_x]
+            else:
+                # no opponent at sap range --> sap random cell
+                fake_dx = random.randint(0, sap_range + 1)
+                fake_dy = random.randint(0, sap_range + 1)
+                if (y + fake_dy) < self.env_cfg["max_width"]:
+                    target_y = y + fake_dy
                 else:
-                    action_type = self.policy_net(torch.from_numpy(state_single).to(self.device)).argmax().item()
-            # Sap action
-            if action_type == 5:
-                if available_opponents:
-                    for opp_unit_id in available_opponents:
-                        # in obs, x & y are inverted
-                        opp_y = obs["units"]["position"][self.opp_team_id, opp_unit_id, 0]
-                        opp_x = obs["units"]["position"][self.opp_team_id, opp_unit_id, 1]
-                        if abs(opp_x - x_single) <= self.env_cfg["unit_sap_range"] and abs(opp_y - y_single) <= self.env_cfg["unit_sap_range"]:
-                            actions[unit_id] = [5, opp_y, opp_x]
-                            break
-                        else:
-                            continue
+                    target_y = y - fake_dy
+                if (x + fake_dx) < self.env_cfg["max_height"]:
+                    target_x = x + fake_dx
                 else:
-                    fake_delta_y = random.randint(0, self.env_cfg["unit_sap_range"] + 1)
-                    fake_delta_x = random.randint(0, self.env_cfg["unit_sap_range"] + 1)
-                    if (y_single + fake_delta_y) < self.env_cfg["max_width"]:
-                        target_y = y_single + fake_delta_y
-                    else:
-                        target_y = y_single - fake_delta_y
-                    if (x_single + fake_delta_x) < self.env_cfg["max_height"]:
-                        target_x = x_single + fake_delta_x
-                    else:
-                        target_x = x_single - fake_delta_x
-                    actions[unit_id] = [5, target_y, target_x]
-        return actions
+                    target_x = x - fake_dx
+                # for env, x and y are inverted
+                return [5, target_x, target_y]
+        else:
+            return [action_type, 0, 0]
 
     def predict(self, step: int, obs, remainingOverageTime: int = 60):
         """
