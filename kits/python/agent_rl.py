@@ -41,9 +41,9 @@ class AgentRl:
         self.lr_rate = config["hyper"]["lr_rate"]
         # Model parameters
         self.action_size = config[self.player]["action_size"]
-        self.policy_net = DQN(config[self.player]["state_size"], config[self.player]["hidden_size"],
+        self.policy_net = DQN(config[self.player]["channels"], config[self.player]["hidden_size"],
                               config[self.player]["action_size"]).to(self.device)
-        self.target_net = DQN(config[self.player]["state_size"], config[self.player]["hidden_size"],
+        self.target_net = DQN(config[self.player]["channels"], config[self.player]["hidden_size"],
                               config[self.player]["action_size"]).to(self.device)
         self.update_target_net()
         self.memory = ReplayBuffer(config[self.player]["buffer"])

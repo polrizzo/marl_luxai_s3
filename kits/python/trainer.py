@@ -36,7 +36,7 @@ if __name__ == "__main__":
         dir="./",
         name=name_test,
         config=config_trainer,
-        group= config_trainer["type_policy"],
+        group= "dqn_dqn",
         job_type= "training" if config_trainer["training"] else "testing",
         # id: (str | None) = None, # settings: (Settings | dict[str, Any] | None) = None
         # reinit: (bool | None) = None,
