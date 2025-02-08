@@ -158,6 +158,8 @@ if __name__ == "__main__":
                             next_single_obs,
                             dones[agent.player]
                         )
+                last_obs_global[agent.player] = next_obs_global[agent.player].copy()
+                next_obs_global[agent.player] = None
 
             if dones["player_0"] or dones["player_1"]:
                 game_done = True
