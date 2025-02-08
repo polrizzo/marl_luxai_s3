@@ -53,8 +53,10 @@ if __name__ == "__main__":
     wandb.define_metric("loss_1", step_metric="step_total")
     wandb.define_metric("points_0", step_metric="step_total")
     wandb.define_metric("points_1", step_metric="step_total")
-    wandb.define_metric("reward_0", step_metric="step_total")
-    wandb.define_metric("reward_1", step_metric="step_total")
+    # wandb.define_metric("reward_0", step_metric="step_total")
+    # wandb.define_metric("reward_1", step_metric="step_total")
+    wandb.define_metric("reward_0")
+    wandb.define_metric("reward_1")
 
     print("Starting Training") if config_trainer["training"] else print("Starting Testing")
     step_total = 0
@@ -124,18 +126,6 @@ if __name__ == "__main__":
             # Environment step + reward log
             obs, rewards, terminated, truncated, info = env.step(actions)
             dones = {k: terminated[k] | truncated[k] for k in terminated}
-            rewards = {
-                "player_0": get_reward(type_reward="delta_points_exploration", obs=obs["player_0"], player=0, last_points=last_points),
-                "player_1": get_reward(type_reward="points_exploration", obs=obs["player_1"], player=1, last_points=last_points)
-            }
-            wandb.log({"step_total": step_total,
-                       "points_0": obs["player_0"]["team_points"][0], "points_1": obs["player_0"]["team_points"][1],
-                       "reward_0": rewards["player_0"], "reward_1": rewards["player_1"]})
-            # update last points (if first step of match, set [0,0])
-            if (step + 2) % 101 == 0:
-                last_points = np.array([0, 0])
-            else:
-                last_points = obs["player_0"]["team_points"]
 
             # Store experience for each player's unit and learn
             for agent in [player_0, player_1]:
@@ -149,6 +139,14 @@ if __name__ == "__main__":
                         # get and store single unit's state
                         next_single_obs = update_single_unit_energy(next_obs_global[agent.player].copy(), energy,
                                                                         y_pos, x_pos)
+                        # get reward
+                        global_type = 'delta_points_exploration' if agent.player == "player_0" else 'delta_points_relic_exploration'
+                        unit_reward = get_reward(global_type, "notYetImplemented", obs[agent.player],
+                                                 last_obs[agent.player][unit_id], agent.team_id, last_points)
+                        if agent.player == "player_0":
+                            wandb.log({"reward_0": unit_reward})
+                        else:
+                            wandb.log({"reward_1": unit_reward})
                         # push to buffer
                         agent.memory.push(
                             last_obs[agent.player][unit_id],
@@ -157,8 +155,17 @@ if __name__ == "__main__":
                             next_single_obs,
                             dones[agent.player]
                         )
+                # update last obs which is the current next obs
                 last_obs_global[agent.player] = next_obs_global[agent.player].copy()
                 next_obs_global[agent.player] = None
+
+            wandb.log({"step_total": step_total,
+                       "points_0": obs["player_0"]["team_points"][0], "points_1": obs["player_0"]["team_points"][1]})
+            # update last points (if first step of match, set [0,0])
+            if (step + 2) % 101 == 0:
+                last_points = np.array([0, 0])
+            else:
+                last_points = obs["player_0"]["team_points"]
 
             if dones["player_0"] or dones["player_1"]:
                 game_done = True
