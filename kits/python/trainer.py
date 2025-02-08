@@ -104,7 +104,7 @@ if __name__ == "__main__":
             for agent in [player_0, player_1]:
                 # Get actions
                 actions[agent.player] = np.zeros((max_units, 3), dtype=int)
-                available_units = np.where(obs[agent.player]["unit_mask"][agent.team_id])[0]
+                available_units = np.where(obs[agent.player]["units_mask"][agent.team_id])[0]
                 available_opponents = np.where(obs[agent.player]["units_mask"][agent.opp_team_id])[0]
                 # Check available units
                 for unit_id in range(max_units):

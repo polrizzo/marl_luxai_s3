@@ -98,11 +98,11 @@ class AgentRl:
                 # no opponent at sap range --> sap random cell
                 fake_dx = random.randint(0, sap_range + 1)
                 fake_dy = random.randint(0, sap_range + 1)
-                if (y + fake_dy) < self.env_cfg["max_width"]:
+                if (y + fake_dy) < self.env_cfg["map_width"]:
                     target_y = y + fake_dy
                 else:
                     target_y = y - fake_dy
-                if (x + fake_dx) < self.env_cfg["max_height"]:
+                if (x + fake_dx) < self.env_cfg["map_height"]:
                     target_x = x + fake_dx
                 else:
                     target_x = x - fake_dx
