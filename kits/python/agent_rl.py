@@ -163,10 +163,10 @@ class AgentRl:
         batch = self.memory.sample(self.batch_size)
         states, actions, rewards, next_states, dones = zip(*batch)
 
-        states = torch.stack(states)
+        states = torch.stack(states).to(self.device)
         actions = torch.LongTensor(actions).to(self.device)
         rewards = torch.FloatTensor(rewards).to(self.device)
-        next_states = torch.stack(next_states)
+        next_states = torch.stack(next_states).to(self.device)
         dones = torch.FloatTensor(dones).to(self.device)
 
         current_q_values = self.policy_net(states).gather(1, actions.unsqueeze(1))

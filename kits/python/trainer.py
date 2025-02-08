@@ -1,5 +1,8 @@
 import random
 from datetime import datetime
+
+import torch
+
 import wandb
 import yaml
 import numpy as np
@@ -133,7 +136,7 @@ if __name__ == "__main__":
                 next_obs_global[agent.player] = agent.get_global_state()
                 for unit_id in range(max_units):
                     if last_active_units[agent.player][unit_id]:
-                        energy = obs[agent.player]["units"]["energy"][agent.team_id, unit_id, 0]
+                        energy = obs[agent.player]["units"]["energy"][agent.team_id, unit_id]
                         y_pos = obs[agent.player]["units"]["position"][agent.team_id, unit_id, 0]
                         x_pos = obs[agent.player]["units"]["position"][agent.team_id, unit_id, 1]
                         # get and store single unit's state
@@ -149,10 +152,10 @@ if __name__ == "__main__":
                             wandb.log({"reward_1": unit_reward})
                         # push to buffer
                         agent.memory.push(
-                            last_obs[agent.player][unit_id],
+                            torch.from_numpy(np.float32(last_obs[agent.player][unit_id])),
                             last_actions[agent.player][unit_id][0],
-                            rewards[agent.player],
-                            next_single_obs,
+                            unit_reward,
+                            torch.from_numpy(np.float32(next_single_obs)),
                             dones[agent.player]
                         )
                 # update last obs which is the current next obs
