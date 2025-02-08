@@ -24,6 +24,10 @@ class AgentRl:
         """
         Build model with config, after baseline initialization.
         """
+        # State representation
+        self.state = None
+        self.relics_mask = np.zeros((6,), dtype=bool)
+        self.relics_position = np.full((6, 2), -1)
         if config["resume"]:
             self.load_model(config[self.player]["saved_model"])
             return
@@ -45,10 +49,6 @@ class AgentRl:
         self.memory = ReplayBuffer(config[self.player]["buffer"])
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=self.lr_rate)
         self.loss = MSELoss() if config[self.player]["loss"] == 'MSE' else HuberLoss()
-        # State representation
-        self.state = None
-        self.relics_mask = np.zeros((6,), dtype=bool)
-        self.relics_position = np.full((6, 2), -1)
 
     def update_env_cfg(self, new_cfg):
         self.env_cfg = new_cfg
@@ -56,7 +56,7 @@ class AgentRl:
     def state_representation(self, obs):
         self.state, self.relics_mask, self.relics_position = global_state(obs, self.relics_mask, self.relics_position,
                                                                           self.team_id, self.opp_team_id)
-        return self.state
+        return
 
     def get_global_state(self):
         return self.state.copy()
@@ -74,7 +74,7 @@ class AgentRl:
         """
         Baseline act.
         """
-        state = self.state_representation(obs)
+        # State must be already stored with self.state_representation()
         actions = np.zeros((self.env_cfg["max_units"], 3), dtype=int)
         available_units = np.where(obs["units_mask"][self.team_id])[0]
         available_opponents = np.where(obs["units_mask"][self.opp_player])[0]
@@ -84,7 +84,7 @@ class AgentRl:
             # in obs, x & y are inverted
             y_single = obs["units"]["position"][self.team_id, unit_id, 0]
             x_single = obs["units"]["position"][self.team_id, unit_id, 1]
-            state_single = self.get_single_state(state.copy(), energy_single, x_single, y_single)
+            state_single = self.get_single_state(self.state.copy(), energy_single, x_single, y_single)
             # call greedy policy or epsilon-random action
             with torch.no_grad():
                 if random.random() < self.epsilon:
@@ -121,7 +121,8 @@ class AgentRl:
         """
         Prediction with target net.
         """
-        state = self.state_representation(obs)
+        self.state_representation(obs)
+        # state = self.state_representation(obs)
         actions = np.zeros((self.env_cfg["max_units"], 3), dtype=int)
         available_units = np.where(obs["units_mask"][self.team_id])[0]
         available_opponents = np.where(obs["units_mask"][self.opp_player])[0]
@@ -131,7 +132,7 @@ class AgentRl:
             # in obs, x & y are inverted
             y_single = obs["units"]["position"][self.team_id, unit_id, 0]
             x_single = obs["units"]["position"][self.team_id, unit_id, 1]
-            state_single = self.get_single_state(state.copy(), energy_single, x_single, y_single)
+            state_single = self.get_single_state(self.state.copy(), energy_single, x_single, y_single)
             # call greedy policy or epsilon-random action
             with torch.no_grad():
                 action_type = self.policy_net(torch.from_numpy(state_single).to(self.device)).argmax().item()
