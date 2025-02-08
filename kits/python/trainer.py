@@ -100,26 +100,25 @@ if __name__ == "__main__":
 
             # Store current state + action
             for agent in [player_0, player_1]:
-                # get actions
-                actions[agent.player] = agent.act(step=step, obs=obs[agent.player])
-                # store signle unit's state
+                # Get actions
+                actions[agent.player] = np.zeros((max_units, 3), dtype=int)
+                available_units = np.where(obs[agent.player]["unit_mask"][agent.team_id])[0]
+                available_opponents = np.where(obs[agent.player]["units_mask"][agent.opp_team_id])[0]
+                # Check available units
                 for unit_id in range(max_units):
-                    if obs[agent.player]["units_mask"][agent.team_id][unit_id]:
-                        energy = obs[agent.player]["units"]["energy"][agent.team_id, unit_id]
-                        y_pos = obs[agent.player]["units"]["position"][agent.team_id, unit_id, 0]
-                        x_pos = obs[agent.player]["units"]["position"][agent.team_id, unit_id, 1]
-                        # get and store single unit's state
-                        single_player_state = update_single_unit_energy(last_obs_global[agent.player].copy(), energy, y_pos, x_pos)
-                        last_obs[agent.player][unit_id] = single_player_state.copy()
-                        last_actions[agent.player][unit_id, 0] = actions[agent.player][unit_id, 0]
-                        last_actions[agent.player][unit_id, 1] = actions[agent.player][unit_id, 1]
-                        last_actions[agent.player][unit_id, 2] = actions[agent.player][unit_id, 2]
-                        # set if the unit was active
+                    if unit_id in available_units:
+                        energy_single = obs[agent.player]["units"]["energy"][agent.team_id, unit_id]
+                        # in obs, x & y are inverted
+                        y_single = obs[agent.player]["units"]["position"][agent.team_id, unit_id, 0]
+                        x_single = obs[agent.player]["units"]["position"][agent.team_id, unit_id, 1]
+                        state_single = update_single_unit_energy(last_obs_global[agent.player].copy(), energy_single, x_single, y_single)
+                        actions[agent.player][unit_id] = agent.act(state_single=state_single, x=x_single, y=y_single)
+                        # Store single obs and action
+                        last_obs[agent.player][unit_id] = state_single.copy()
+                        last_actions[agent.player][unit_id] = actions[agent.player][unit_id]
+                        # Set if the unit was active
                         last_active_units[agent.player][unit_id] = True
                     else:
-                        last_actions[agent.player][unit_id, 0] = 0
-                        last_actions[agent.player][unit_id, 1] = 0
-                        last_actions[agent.player][unit_id, 2] = 0
                         last_active_units[agent.player][unit_id] = False
 
             # Environment step + reward log
