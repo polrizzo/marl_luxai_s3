@@ -105,7 +105,7 @@ if __name__ == "__main__":
                 # store signle unit's state
                 for unit_id in range(max_units):
                     if obs[agent.player]["units_mask"][agent.team_id][unit_id]:
-                        energy = obs[agent.player]["units"]["energy"][agent.team_id, unit_id, 0]
+                        energy = obs[agent.player]["units"]["energy"][agent.team_id, unit_id]
                         y_pos = obs[agent.player]["units"]["position"][agent.team_id, unit_id, 0]
                         x_pos = obs[agent.player]["units"]["position"][agent.team_id, unit_id, 1]
                         # get and store single unit's state

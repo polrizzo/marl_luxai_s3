@@ -77,10 +77,10 @@ class AgentRl:
         # State must be already stored with self.state_representation()
         actions = np.zeros((self.env_cfg["max_units"], 3), dtype=int)
         available_units = np.where(obs["units_mask"][self.team_id])[0]
-        available_opponents = np.where(obs["units_mask"][self.opp_player])[0]
+        available_opponents = np.where(obs["units_mask"][self.opp_team_id])[0]
 
         for unit_id in available_units:
-            energy_single = obs["units"]["energy"][self.team_id, unit_id, 0]
+            energy_single = obs["units"]["energy"][self.team_id, unit_id]
             # in obs, x & y are inverted
             y_single = obs["units"]["position"][self.team_id, unit_id, 0]
             x_single = obs["units"]["position"][self.team_id, unit_id, 1]

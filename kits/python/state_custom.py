@@ -5,7 +5,6 @@ def global_state(obs, relics_mask, relics_position, player: int, opponent: int) 
     Return global state representation of current obs.
     """
     state = np.zeros((6,24,24))
-    print(obs["units_mask"][player])
     # channel 0: player's units ---------------------------------
     for unit_id in np.where(obs["units_mask"][player])[0]:
         # in obs, x & y are inverted
