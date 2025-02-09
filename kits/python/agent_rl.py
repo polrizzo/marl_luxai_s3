@@ -78,7 +78,10 @@ class AgentRl:
             if random.random() < self.epsilon:
                 action_type = np.random.choice(self.action_size)
             else:
-                action_type = self.policy_net(torch.from_numpy(state_single).to(self.device)).argmax().item()
+                state_tensor = torch.from_numpy(np.float32(state_single))
+                state_tensor = state_tensor.to(self.device)
+                state_tensor = state_tensor.unsqueeze(0)
+                action_type = self.policy_net(state_tensor).argmax().item()
         # Sap action
         if action_type == 5:
             # check if state[1] (opponent channel) is full of zeros
@@ -119,17 +122,20 @@ class AgentRl:
         # state = self.state_representation(obs)
         actions = np.zeros((self.env_cfg["max_units"], 3), dtype=int)
         available_units = np.where(obs["units_mask"][self.team_id])[0]
-        available_opponents = np.where(obs["units_mask"][self.opp_player])[0]
 
         for unit_id in available_units:
-            energy_single = obs["units"]["energy"][self.team_id, unit_id, 0]
+            energy_single = obs["units"]["energy"][self.team_id, unit_id]
             # in obs, x & y are inverted
             y_single = obs["units"]["position"][self.team_id, unit_id, 0]
             x_single = obs["units"]["position"][self.team_id, unit_id, 1]
             state_single = self.get_single_state(self.state.copy(), energy_single, x_single, y_single)
             # call greedy policy or epsilon-random action
             with torch.no_grad():
-                action_type = self.target_net(torch.from_numpy(np.float32(state_single)).to(self.device)).argmax().item()
+                state_tensor = torch.from_numpy(np.float32(state_single))
+                state_tensor = state_tensor.to(self.device)
+                state_tensor = state_tensor.unsqueeze(0)
+                action_type = self.target_net(state_tensor).argmax().item()
+                # action_type = self.target_net(torch.from_numpy(state_single).to(self.device)).argmax().item()
             # Sap action
             if action_type == 5:
                 # check if state[1] (opponent channel) is full of zeros
