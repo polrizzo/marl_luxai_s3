@@ -67,8 +67,8 @@ class AgentRl:
     def get_relic_position(self):
         return self.relics_position.copy()
 
-    def get_single_state(self, global_state, energy, x, y) -> np.ndarray:
-        return update_single_unit_energy(global_state, energy, x, y)
+    def get_single_state(self, state_global, energy, x, y) -> np.ndarray:
+        return update_single_unit_energy(state_global, energy, x, y)
 
     def act(self, state_single, x, y):
         """
@@ -107,7 +107,7 @@ class AgentRl:
                 else:
                     target_x = x - fake_dx
                 # for env, x and y are inverted
-                return [5, target_x, target_y]
+                return [5, target_y, target_x]
         else:
             return [action_type, 0, 0]
 
@@ -129,32 +129,44 @@ class AgentRl:
             state_single = self.get_single_state(self.state.copy(), energy_single, x_single, y_single)
             # call greedy policy or epsilon-random action
             with torch.no_grad():
-                action_type = self.policy_net(torch.from_numpy(state_single).to(self.device)).argmax().item()
+                action_type = self.target_net(torch.from_numpy(np.float32(state_single)).to(self.device)).argmax().item()
             # Sap action
             if action_type == 5:
-                if available_opponents:
-                    for opp_unit_id in available_opponents:
-                        # in obs, x & y are inverted
-                        opp_y = obs["units"]["position"][self.opp_team_id, opp_unit_id, 0]
-                        opp_x = obs["units"]["position"][self.opp_team_id, opp_unit_id, 1]
-                        if abs(opp_x - x_single) <= self.env_cfg["unit_sap_range"] and abs(opp_y - y_single) <= \
-                                self.env_cfg["unit_sap_range"]:
-                            actions[unit_id] = [5, opp_y, opp_x]
+                # check if state[1] (opponent channel) is full of zeros
+                sap_range = self.env_cfg["unit_sap_range"]
+                north = max(0, x_single - sap_range)
+                west = max(0, y_single - sap_range)
+                south = min(23, x_single + sap_range)
+                east = min(23, y_single + sap_range)
+                sap_done = False
+                if np.any(state_single[1, north:south + 1, west:east + 1]):
+                    # there is at leat one visible opponent
+                    for target_x in range(north, south + 1):
+                        if sap_done:
                             break
-                        else:
-                            continue
+                        for target_y in range(west, east + 1):
+                            if state_single[1, target_x, target_y] > 0:
+                                # for env, x and y are inverted
+                                actions[unit_id] = [5, target_y, target_x]
+                                sap_done = True
+                                break
                 else:
-                    fake_delta_y = random.randint(0, self.env_cfg["unit_sap_range"] + 1)
-                    fake_delta_x = random.randint(0, self.env_cfg["unit_sap_range"] + 1)
-                    if (y_single + fake_delta_y) < self.env_cfg["max_width"]:
-                        target_y = y_single + fake_delta_y
+                    # no opponent at sap range --> sap random cell
+                    fake_dx = random.randint(0, sap_range + 1)
+                    fake_dy = random.randint(0, sap_range + 1)
+                    if (y_single + fake_dy) < self.env_cfg["map_width"]:
+                        target_y = y_single + fake_dy
                     else:
-                        target_y = y_single - fake_delta_y
-                    if (x_single + fake_delta_x) < self.env_cfg["max_height"]:
-                        target_x = x_single + fake_delta_x
+                        target_y = y_single - fake_dy
+                    if (x_single + fake_dx) < self.env_cfg["map_height"]:
+                        target_x = x_single + fake_dx
                     else:
-                        target_x = x_single - fake_delta_x
+                        target_x = x_single - fake_dx
+                    # for env, x and y are inverted
                     actions[unit_id] = [5, target_y, target_x]
+            else:
+                actions[unit_id] = [action_type, 0, 0]
+
         return actions
 
     def learn(self, step, player, training=True):
