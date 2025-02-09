@@ -64,8 +64,8 @@ if __name__ == "__main__":
     print("Starting Training") if config_trainer["training"] else print("Starting Testing")
     step_total = 0
     # TRAINING -------------------------------------------------
-    # for i in range(config_trainer["hyper"]["num_games"]):
-    for i in range(1):
+    for i in range(config_trainer["hyper"]["num_games"]):
+    # for i in range(1):
         step = 0
         game_done = False
         # Setup obs variables
@@ -191,8 +191,8 @@ if __name__ == "__main__":
 
         # EVALUATION -------------------------------------------------
         # # Eval phase every 1/10 of num_games
-        # if (i + 1) % (config_trainer["hyper"]['num_games'] // config_trainer["hyper"]['eval']) == 0:
-        if i  == 0:
+        if (i + 1) % (config_trainer["hyper"]['num_games'] // config_trainer["hyper"]['eval']) == 0:
+        # if i  == 0:
             game_done = False
             # Setup env
             seed = random.randint(0, 1000000000)
