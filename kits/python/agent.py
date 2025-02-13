@@ -1,7 +1,9 @@
-from lux.utils import direction_to
-import sys
+import random
 import numpy as np
+import torch
 
+from policy_dqn import DQN
+from state_custom import global_state, update_single_unit_energy
 
 class Agent():
     def __init__(self, player: str, env_cfg) -> None:
@@ -9,64 +11,84 @@ class Agent():
         self.opp_player = "player_1" if self.player == "player_0" else "player_0"
         self.team_id = 0 if self.player == "player_0" else 1
         self.opp_team_id = 1 if self.team_id == 0 else 0
-        np.random.seed(0)
         self.env_cfg = env_cfg
+        # Custom attributes
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.state = None
+        self.relics_mask = np.zeros((6,), dtype=bool)
+        self.relics_position = np.full((6, 2), -1)
+        # Load DQN model
+        self.action_size = 6
+        self.model = DQN(channels=6, hidden_size=128, output_size=self.action_size)
+        path = "./dqn_player_0.pth" if self.team_id == 0 else "./dqn_player_1.pth"
+        checkpoint = torch.load(path)
+        self.model.load_state_dict(checkpoint["target_net"])
 
-        self.relic_node_positions = []
-        self.discovered_relic_nodes_ids = set()
-        self.unit_explore_locations = dict()
+    def state_representation(self, obs):
+        self.state, self.relics_mask, self.relics_position = global_state(obs, self.relics_mask, self.relics_position,
+                                                                          self.team_id, self.opp_team_id)
+        return
+
+    def get_single_state(self, state_global, energy, x, y) -> np.ndarray:
+        return update_single_unit_energy(state_global, energy, x, y)
 
     def act(self, step: int, obs, remainingOverageTime: int = 60):
         """implement this function to decide what actions to send to each available unit.
 
         step is the current timestep number of the game starting from 0 going up to max_steps_in_match * match_count_per_episode - 1.
         """
-        unit_mask = np.array(obs["units_mask"][self.team_id])  # shape (max_units, )
-        unit_positions = np.array(obs["units"]["position"][self.team_id])  # shape (max_units, 2)
-        unit_energys = np.array(obs["units"]["energy"][self.team_id])  # shape (max_units, 1)
-        observed_relic_node_positions = np.array(obs["relic_nodes"])  # shape (max_relic_nodes, 2)
-        observed_relic_nodes_mask = np.array(obs["relic_nodes_mask"])  # shape (max_relic_nodes, )
-        team_points = np.array(
-            obs["team_points"])  # points of each team, team_points[self.team_id] is the points of the your team
-
-        # ids of units you can control at this timestep
-        available_unit_ids = np.where(unit_mask)[0]
-        # visible relic nodes
-        visible_relic_node_ids = set(np.where(observed_relic_nodes_mask)[0])
-
+        self.state_representation(obs)
+        # state = self.state_representation(obs)
         actions = np.zeros((self.env_cfg["max_units"], 3), dtype=int)
+        available_units = np.where(obs["units_mask"][self.team_id])[0]
 
-        # basic strategy here is simply to have some units randomly explore and some units collecting as much energy as possible
-        # and once a relic node is found, we send all units to move randomly around the first relic node to gain points
-        # and information about where relic nodes are found are saved for the next match
-
-        # save any new relic nodes that we discover for the rest of the game.
-        for id in visible_relic_node_ids:
-            if id not in self.discovered_relic_nodes_ids:
-                self.discovered_relic_nodes_ids.add(id)
-                self.relic_node_positions.append(observed_relic_node_positions[id])
-
-        # unit ids range from 0 to max_units - 1
-        for unit_id in available_unit_ids:
-            unit_pos = unit_positions[unit_id]
-            unit_energy = unit_energys[unit_id]
-            if len(self.relic_node_positions) > 0:
-                nearest_relic_node_position = self.relic_node_positions[0]
-                manhattan_distance = abs(unit_pos[0] - nearest_relic_node_position[0]) + abs(
-                    unit_pos[1] - nearest_relic_node_position[1])
-
-                # if close to the relic node we want to hover around it and hope to gain points
-                if manhattan_distance <= 4:
-                    random_direction = np.random.randint(0, 5)
-                    actions[unit_id] = [random_direction, 0, 0]
+        for unit_id in available_units:
+            energy_single = obs["units"]["energy"][self.team_id, unit_id]
+            # in obs, x & y are inverted
+            y_single = obs["units"]["position"][self.team_id, unit_id, 0]
+            x_single = obs["units"]["position"][self.team_id, unit_id, 1]
+            state_single = self.get_single_state(self.state.copy(), energy_single, x_single, y_single)
+            # call greedy policy or epsilon-random action
+            with torch.no_grad():
+                state_tensor = torch.from_numpy(np.float32(state_single))
+                state_tensor = state_tensor.to(self.device)
+                state_tensor = state_tensor.unsqueeze(0)
+                action_type = self.model(state_tensor).argmax().item()
+                # action_type = self.target_net(torch.from_numpy(state_single).to(self.device)).argmax().item()
+            # Sap action
+            if action_type == 5:
+                # check if state[1] (opponent channel) is full of zeros
+                sap_range = self.env_cfg["unit_sap_range"]
+                north = max(0, x_single - sap_range)
+                west = max(0, y_single - sap_range)
+                south = min(23, x_single + sap_range)
+                east = min(23, y_single + sap_range)
+                sap_done = False
+                if np.any(state_single[1, north:south + 1, west:east + 1]):
+                    # there is at leat one visible opponent
+                    for target_x in range(north, south + 1):
+                        if sap_done:
+                            break
+                        for target_y in range(west, east + 1):
+                            if state_single[1, target_x, target_y] > 0:
+                                # for env, x and y are inverted
+                                actions[unit_id] = [5, target_y, target_x]
+                                sap_done = True
+                                break
                 else:
-                    # otherwise we want to move towards the relic node
-                    actions[unit_id] = [direction_to(unit_pos, nearest_relic_node_position), 0, 0]
+                    # no opponent at sap range --> sap random cell
+                    fake_dx = random.randint(0, sap_range + 1)
+                    fake_dy = random.randint(0, sap_range + 1)
+                    if (y_single + fake_dy) < self.env_cfg["map_width"]:
+                        target_y = y_single + fake_dy
+                    else:
+                        target_y = y_single - fake_dy
+                    if (x_single + fake_dx) < self.env_cfg["map_height"]:
+                        target_x = x_single + fake_dx
+                    else:
+                        target_x = x_single - fake_dx
+                    # for env, x and y are inverted
+                    actions[unit_id] = [5, target_y, target_x]
             else:
-                # randomly explore by picking a random location on the map and moving there for about 20 steps
-                if step % 20 == 0 or unit_id not in self.unit_explore_locations:
-                    rand_loc = (
-                    np.random.randint(0, self.env_cfg["map_width"]), np.random.randint(0, self.env_cfg["map_height"]))
-                    self.unit_explore_locations[unit_id] = rand_loc
-                actions[unit_id] = [direction_to(unit_pos, self.unit_explore_locations[unit_id]), 0, 0]
+                actions[unit_id] = [action_type, 0, 0]
         return actions
