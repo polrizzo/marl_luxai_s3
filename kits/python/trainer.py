@@ -10,7 +10,7 @@ import numpy as np
 from kits.python.state_custom import update_single_unit_energy, global_state
 from luxai_s3.wrappers import RecordEpisode, LuxAIS3GymEnv
 from agent_rl import AgentRl
-from reward import get_reward
+from reward import get_global_reward, get_unit_reward
 
 if __name__ == "__main__":
     # Env settings
@@ -64,8 +64,8 @@ if __name__ == "__main__":
     print("Starting Training") if config_trainer["training"] else print("Starting Testing")
     step_total = 0
     # TRAINING -------------------------------------------------
-    for i in range(config_trainer["hyper"]["num_games"]):
-    # for i in range(1):
+    # for i in range(config_trainer["hyper"]["num_games"]):
+    for i in range(10):
         step = 0
         game_done = False
         # Setup obs variables
@@ -143,9 +143,14 @@ if __name__ == "__main__":
                         next_single_obs = update_single_unit_energy(next_obs_global[agent.player].copy(), energy,
                                                                         y_pos, x_pos)
                         # get reward
-                        global_type = 'delta_points_exploration' if agent.player == "player_0" else 'delta_points_relic_exploration'
-                        unit_reward = get_reward(global_type, "notYetImplemented", obs[agent.player],
-                                                 last_obs[agent.player][unit_id], agent.team_id, last_points)
+                        # global_type = 'delta_points_exploration' if agent.player == "player_0" else 'delta_points_relic_exploration'
+                        # unit_reward = get_reward(global_type, "notYetImplemented", obs[agent.player],
+                        #                          last_obs[agent.player][unit_id], agent.team_id, last_points,
+                        #                          actions[agent.player][unit_id], y_pos, x_pos)
+                        # global_reward = get_global_reward()
+                        unit_reward = get_unit_reward(last_obs[agent.player][unit_id], last_actions[agent.player][unit_id],
+                                                      y_pos, x_pos, agent.get_relic_mask(), agent.get_relic_position())
+                        custom_reward = unit_reward
                         if agent.player == "player_0":
                             wandb.log({"reward_0": unit_reward})
                         else:

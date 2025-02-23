@@ -36,8 +36,8 @@ def get_global_reward(player: int, obs: dict, last_points: np.array) -> float:
 def get_unit_reward(unit_state, action, pos_x, pos_y, relics_mask, relics_position) -> float:
     action_type = action[0]
     if action_type == 5:  # sap action
-        opp_x = action[2]
-        opp_y = action[1]
+        opp_x = int(action[2])
+        opp_y = int(action[1])
         if unit_state[1, opp_x, opp_y] > 0:
             return float(1)
         else:

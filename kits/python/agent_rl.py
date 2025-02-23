@@ -147,7 +147,7 @@ class AgentRl:
                 east = min(23, y_single + sap_range)
                 sap_done = False
                 if np.any(state_single[1, north:south + 1, west:east + 1]):
-                    # there is at leat one visible opponent
+                    # there is at least one visible opponent
                     for target_x in range(north, south + 1):
                         if sap_done:
                             break
