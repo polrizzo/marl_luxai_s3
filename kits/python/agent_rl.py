@@ -46,6 +46,7 @@ class AgentRl:
         self.target_net = DQN(config[self.player]["channels"], config[self.player]["hidden_size"],
                               config[self.player]["action_size"]).to(self.device)
         self.update_target_net()
+        self.target_net.eval()
         self.memory = ReplayBuffer(config[self.player]["buffer"])
         self.optimizer = optim.Adam(self.policy_net.parameters(), lr=self.lr_rate)
         self.loss = MSELoss() if config[self.player]["loss"] == 'MSE' else HuberLoss()
