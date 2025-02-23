@@ -1,6 +1,7 @@
 import random
 import numpy as np
 import torch
+import os
 
 from policy_dqn import DQN
 from state_custom import global_state, update_single_unit_energy
@@ -20,9 +21,11 @@ class Agent():
         # Load DQN model
         self.action_size = 6
         self.model = DQN(channels=6, hidden_size=128, output_size=self.action_size)
-        path = "./dqn_player_0.pth" if self.team_id == 0 else "./dqn_player_1.pth"
-        checkpoint = torch.load(path)
-        self.model.load_state_dict(checkpoint["target_net"])
+        path_name = "dqn_player_0.pth" if self.team_id == 0 else "dqn_player_1.pth"
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), path_name)
+        self.model.load_state_dict(torch.load(path, weights_only=True, map_location=self.device)["target_net"])
+        self.model.to(self.device)
+        self.model.eval()
 
     def state_representation(self, obs):
         self.state, self.relics_mask, self.relics_position = global_state(obs, self.relics_mask, self.relics_position,
@@ -51,10 +54,9 @@ class Agent():
             # call greedy policy or epsilon-random action
             with torch.no_grad():
                 state_tensor = torch.from_numpy(np.float32(state_single))
-                state_tensor = state_tensor.to(self.device)
                 state_tensor = state_tensor.unsqueeze(0)
+                state_tensor = state_tensor.to(self.device)
                 action_type = self.model(state_tensor).argmax().item()
-                # action_type = self.target_net(torch.from_numpy(state_single).to(self.device)).argmax().item()
             # Sap action
             if action_type == 5:
                 # check if state[1] (opponent channel) is full of zeros
