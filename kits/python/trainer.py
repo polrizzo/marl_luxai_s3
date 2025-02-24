@@ -159,7 +159,7 @@ if __name__ == "__main__":
                         agent.memory.push(
                             torch.from_numpy(np.float32(last_obs[agent.player][unit_id])),
                             last_actions[agent.player][unit_id][0],
-                            unit_reward,
+                            custom_reward,
                             torch.from_numpy(np.float32(next_single_obs)),
                             dones[agent.player]
                         )
