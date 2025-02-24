@@ -8,7 +8,7 @@ import yaml
 import numpy as np
 
 from state_custom import update_single_unit_energy, global_state
-from src.luxai_s3.wrappers import RecordEpisode, LuxAIS3GymEnv
+from luxai_s3.wrappers import RecordEpisode, LuxAIS3GymEnv
 from agent_rl import AgentRl
 from reward import get_global_reward, get_unit_reward
 
@@ -60,6 +60,8 @@ if __name__ == "__main__":
     # wandb.define_metric("reward_1", step_metric="step_total")
     wandb.define_metric("reward_0")
     wandb.define_metric("reward_1")
+    wandb.define_metric("gradient_0", step_metric="total_games")
+    wandb.define_metric("gradient_1", step_metric="total_games")
 
     print("Starting Training") if config_trainer["training"] else print("Starting Testing")
     step_total = 0

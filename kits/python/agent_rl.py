@@ -198,6 +198,12 @@ class AgentRl:
 
         self.optimizer.zero_grad()
         loss.backward()
+        # log gradients
+        epoch_grad_norms = [param.grad.norm(2).item() for param in self.policy_net.parameters() if param.grad is not None]
+        gradient_name = "gradient_0" if self.player == "player_0" else "gradient_1"
+        for grad_param in epoch_grad_norms:
+            wandb.log({gradient_name: grad_param})
+
         self.optimizer.step()
 
         # Update target network and decrease epsilon after every game
