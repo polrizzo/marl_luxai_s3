@@ -38,7 +38,7 @@ class LuxAIS3GymEnv(gym.Env):
         self.jax_env.render(self.state, self.env_params)
 
     def reset(
-        self, *, seed: int | None = None, options: dict[str, Any] | None = None
+        self, *, seed: int or None = None, options: dict[str, Any] or None = None
     ) -> tuple[Any, dict[str, Any]]:
         if seed is not None:
             self.rng_key = jax.random.key(seed)
