@@ -8,7 +8,7 @@ import yaml
 import numpy as np
 
 from state_custom import update_single_unit_energy, global_state
-from luxai_s3.wrappers import RecordEpisode, LuxAIS3GymEnv
+from src.luxai_s3.wrappers import RecordEpisode, LuxAIS3GymEnv
 from agent_rl import AgentRl
 from reward import get_global_reward, get_unit_reward
 
