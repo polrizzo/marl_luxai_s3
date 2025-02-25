@@ -227,6 +227,8 @@ if __name__ == "__main__":
             name_eval = "./replays/game_" + str(game_num) + ".json"
             env_eval.save_episode(save_path=name_eval)
             env_eval.close()
+            player_0.save_model()
+            player_1.save_model()
 
     player_0.save_model()
     player_1.save_model()
