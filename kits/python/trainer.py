@@ -8,7 +8,7 @@ import yaml
 import numpy as np
 
 from kits.python.state_custom import update_single_unit_energy, global_state
-from src.luxai_s3.wrappers import RecordEpisode, LuxAIS3GymEnv
+from luxai_s3.wrappers import RecordEpisode, LuxAIS3GymEnv
 from kits.python.agent_rl import AgentRl
 from kits.python.reward import get_global_reward, get_unit_reward
 
@@ -22,7 +22,7 @@ if __name__ == "__main__":
     match_per_episode = info["params"]["match_count_per_episode"]
 
     # Agents settings
-    with open("kits/python/config_trainer.yaml", "r") as stream:
+    with open("config_trainer.yaml", "r") as stream:
         config_trainer = yaml.safe_load(stream)
     player_0 = AgentRl("player_0", info["params"])
     player_0.build_model(config_trainer)
@@ -36,7 +36,7 @@ if __name__ == "__main__":
     wandb.init(
         entity="polrizzo",
         project="LuxAI_S3",
-        dir="kits/python/",
+        dir="/",
         name=name_test,
         config=config_trainer,
         group= "dqn_dqn",
@@ -203,7 +203,7 @@ if __name__ == "__main__":
             game_done = False
             # Setup env
             seed = random.randint(0, 1000000000)
-            env_eval = RecordEpisode(env=env, save_dir="kits/python/replays/", save_on_reset=False, save_on_close=False)
+            env_eval = RecordEpisode(env=env, save_dir="replays/", save_on_reset=False, save_on_close=False)
             obs, info = env_eval.reset(seed=seed)
             player_0.update_env_cfg(info["params"])
             player_1.update_env_cfg(info["params"])
