@@ -38,6 +38,7 @@ class AgentRl:
         self.epsilon_decay = config["hyper"]["epsilon_decay"]
         self.epsilon_min = config["hyper"]["epsilon_min"]
         self.gamma = config["hyper"]["gamma"]
+        self.tau = config["hyper"]["tau"]
         self.lr_rate = config["hyper"]["lr_rate"]
         # Model parameters
         self.action_size = config[self.player]["action_size"]
@@ -213,7 +214,14 @@ class AgentRl:
         wandb.log({epsilon_name: self.epsilon})
 
     def update_target_net(self):
-        self.target_net.load_state_dict(self.policy_net.state_dict())
+        if self.tau is None:
+            self.target_net.load_state_dict(self.policy_net.state_dict())
+        else:
+            target_net_state_dict = self.target_net.state_dict()
+            policy_net_state_dict = self.policy_net.state_dict()
+            for key in policy_net_state_dict:
+                target_net_state_dict[key] = policy_net_state_dict[key] * self.tau + target_net_state_dict[key] * (1 - self.tau)
+            self.target_net.load_state_dict(target_net_state_dict)
 
     def save_model(self):
         now_str = datetime.now().strftime("%Y-%m-%d_%H:%M")

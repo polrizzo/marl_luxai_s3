@@ -192,9 +192,16 @@ if __name__ == "__main__":
         wandb.log({"total_games": i, "seed": seed,
                    "winner": 1 if winner > 0 else -1})
         # Update target_net every (num_games/update_tn)
-        if (i+1) % (config_trainer["hyper"]['num_games'] // config_trainer["hyper"]['update_tn']) == 0:
+        if config_trainer["hyper"]["tau"] and config_trainer["hyper"]["tau"] is not None:
+            # update target net according to tau
             player_0.update_target_net()
             player_1.update_target_net()
+        elif (i+1) % (config_trainer["hyper"]['num_games'] // config_trainer["hyper"]['update_tn']) == 0:
+            # update target net every C-cycle
+            player_0.update_target_net()
+            player_1.update_target_net()
+        else:
+            pass
 
         # EVALUATION -------------------------------------------------
         # # Eval phase every 1/10 of num_games
