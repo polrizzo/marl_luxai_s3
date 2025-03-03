@@ -1,10 +1,4 @@
 import numpy as np
-from lux.utils import direction_to
-
-# def get_reward(global_type: str, single_type: str, obs: dict, unit_state, player: int, last_points: np.array, action) -> float:
-#     reward_global = get_global_reward(global_type, unit_state, player, obs, last_points)
-#     reward_unit = get_unit_reward(single_type, unit_state, action)
-#     return reward_global + reward_unit
 
 
 # def get_global_reward(unit_state, player: int, obs: dict, last_points: np.array) -> float:
@@ -29,8 +23,35 @@ from lux.utils import direction_to
 
 def get_global_reward(player: int, obs: dict, last_points: np.array) -> float:
     # exploration reward (based on half-map)
-    # exp_reward = 2 * reward_exploration(obs)
-    return float(0)
+    exp_reward = 2 * reward_exploration(obs)
+    # delta points reward
+    delta_reward = reward_delta_points(obs, player, last_points) / 16
+    # create weights
+    dp_weight = obs["steps"] / 101.0
+    exp_weight = 1 - dp_weight
+    return (dp_weight * delta_reward) + (exp_weight * exp_reward)
+
+def reward_gap_points(obs: dict, player: int) -> float:
+    """
+    Return (player score) - (opponent score).
+    """
+    gap = obs["team_points"][player] - obs["team_points"][1 - player]
+    return float(gap)
+
+def reward_delta_points(obs:dict, player: int, last_points: np.array) -> float:
+    """
+    Return (points score) - (previous point score).
+    """
+    delta = obs["team_points"] - last_points
+    return float(delta[player])
+
+def reward_exploration(obs: dict) -> float:
+    """
+    Return the visible map, according to observation.
+    """
+    tot_cells = obs["sensor_mask"].shape[0] * obs["sensor_mask"].shape[1]
+    visible_cells = obs["sensor_mask"].sum()
+    return visible_cells / tot_cells
 
 
 def get_unit_reward(unit_state, action, pos_x, pos_y, relics_mask, relics_position) -> float:
@@ -87,25 +108,3 @@ def get_unit_reward(unit_state, action, pos_x, pos_y, relics_mask, relics_positi
                 return float(-1)
             else:
                 return float(0)
-
-def reward_gap_points(obs: dict, player: int) -> float:
-    """
-    Return (player score) - (opponent score).
-    """
-    gap = obs["team_points"][player] - obs["team_points"][1 - player]
-    return float(gap)
-
-def reward_delta_points(obs:dict, player: int, last_points: np.array) -> float:
-    """
-    Return (points score) - (previous point score).
-    """
-    delta = obs["team_points"] - last_points
-    return float(delta[player])
-
-def reward_exploration(obs: dict) -> float:
-    """
-    Return the visible map, according to observation.
-    """
-    tot_cells = obs["sensor_mask"].shape[0] * obs["sensor_mask"].shape[1]
-    visible_cells = obs["sensor_mask"].sum()
-    return visible_cells / tot_cells

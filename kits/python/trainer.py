@@ -145,11 +145,7 @@ if __name__ == "__main__":
                         next_single_obs = update_single_unit_energy(next_obs_global[agent.player].copy(), energy,
                                                                         y_pos, x_pos)
                         # get reward
-                        # global_type = 'delta_points_exploration' if agent.player == "player_0" else 'delta_points_relic_exploration'
-                        # unit_reward = get_reward(global_type, "notYetImplemented", obs[agent.player],
-                        #                          last_obs[agent.player][unit_id], agent.team_id, last_points,
-                        #                          actions[agent.player][unit_id], y_pos, x_pos)
-                        # global_reward = get_global_reward()
+                        global_reward = get_global_reward(agent.team_id, last_obs_global[agent.player], last_points)
                         unit_reward = get_unit_reward(last_obs[agent.player][unit_id], last_actions[agent.player][unit_id],
                                                       y_pos, x_pos, agent.get_relic_mask(), agent.get_relic_position())
                         custom_reward = unit_reward
