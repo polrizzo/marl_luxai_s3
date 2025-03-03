@@ -37,7 +37,7 @@ if __name__ == "__main__":
         entity="polrizzo",
         project="LuxAI_S3",
         dir="/",
-        name=name_test,
+        name="single_globalPositiveOnly",
         config=config_trainer,
         group= "dqn_dqn",
         job_type= "training" if config_trainer["training"] else "testing",
@@ -66,8 +66,8 @@ if __name__ == "__main__":
     print("Starting Training") if config_trainer["training"] else print("Starting Testing")
     step_total = 0
     # TRAINING -------------------------------------------------
-    # for i in range(config_trainer["hyper"]["num_games"]):
-    for i in range(10):
+    for i in range(config_trainer["hyper"]["num_games"]):
+    # for i in range(10):
         step = 0
         game_done = False
         # Setup obs variables
@@ -148,7 +148,7 @@ if __name__ == "__main__":
                         global_reward = get_global_reward(agent.team_id, last_obs_global[agent.player], last_points)
                         unit_reward = get_unit_reward(last_obs[agent.player][unit_id], last_actions[agent.player][unit_id],
                                                       y_pos, x_pos, agent.get_relic_mask(), agent.get_relic_position())
-                        custom_reward = unit_reward
+                        custom_reward = global_reward + unit_reward
                         if agent.player == "player_0":
                             wandb.log({"reward_0": unit_reward})
                         else:
