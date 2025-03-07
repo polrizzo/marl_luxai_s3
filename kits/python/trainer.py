@@ -145,7 +145,7 @@ if __name__ == "__main__":
                         next_single_obs = update_single_unit_energy(next_obs_global[agent.player].copy(), energy,
                                                                         y_pos, x_pos)
                         # get reward
-                        global_reward = get_global_reward(agent.team_id, last_obs_global[agent.player], last_points)
+                        global_reward = get_global_reward(agent.team_id, obs[agent.player], last_points)
                         unit_reward = get_unit_reward(last_obs[agent.player][unit_id], last_actions[agent.player][unit_id],
                                                       y_pos, x_pos, agent.get_relic_mask(), agent.get_relic_position())
                         custom_reward = global_reward + unit_reward
