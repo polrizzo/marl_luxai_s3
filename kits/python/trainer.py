@@ -37,7 +37,7 @@ if __name__ == "__main__":
         entity="polrizzo",
         project="LuxAI_S3",
         dir="/",
-        name="single_globalPositiveOnly",
+        name="single_globalPosNeg",
         config=config_trainer,
         group= "dqn_dqn",
         job_type= "training" if config_trainer["training"] else "testing",
