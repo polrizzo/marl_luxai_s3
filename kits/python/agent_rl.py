@@ -199,6 +199,8 @@ class AgentRl:
 
         self.optimizer.zero_grad()
         loss.backward()
+        # clip gradient
+        torch.nn.utils.clip_grad_norm_(parameters=self.policy_net.parameters(), max_norm=1)
         # log gradients
         epoch_grad_norms = [param.grad.norm(2).item() for param in self.policy_net.parameters() if param.grad is not None]
         gradient_name = "gradient_0" if self.player == "player_0" else "gradient_1"
