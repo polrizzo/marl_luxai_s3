@@ -23,7 +23,7 @@ import numpy as np
 
 def get_global_reward(player: int, obs: dict, last_points: np.array) -> float:
     # exploration reward (based on half-map)
-    exp_reward = 2 * reward_exploration(obs)
+    exp_reward = 2.0 * reward_exploration(obs)
     # delta points reward
     delta_reward = reward_delta_points(obs, player, last_points) / 16
     # create weights
