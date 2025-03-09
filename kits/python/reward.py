@@ -26,17 +26,18 @@ def get_global_reward(player: int, obs: dict, last_points: np.array) -> float:
     exp_reward = 2.0 * reward_exploration(obs)
     # delta points reward
     # delta_reward = reward_delta_points(obs, player, last_points) / 16
-    delta_reward = reward_gap_points(obs, player)
+    delta_reward = reward_gap_points(obs, player, last_points)
     # create weights
     dp_weight = obs["steps"] / 101.0
     exp_weight = 1 - dp_weight
     return (dp_weight * delta_reward) + (exp_weight * exp_reward)
 
-def reward_gap_points(obs: dict, player: int) -> float:
+def reward_gap_points(obs: dict, player: int, last_points: np.array) -> float:
     """
     Return (player score) - (opponent score).
     """
-    gap = obs["team_points"][player] - obs["team_points"][1 - player]
+    delta = obs["team_points"] - last_points
+    gap = delta[player] - delta[1 - player]
     return float(gap)
 
 def reward_delta_points(obs:dict, player: int, last_points: np.array) -> float:
