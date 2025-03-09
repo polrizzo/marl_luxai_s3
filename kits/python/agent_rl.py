@@ -6,6 +6,7 @@ import random
 import wandb
 from datetime import datetime
 from policy_dqn import DQN, ReplayBuffer
+from policy_AC import ActorCritic
 from state_custom import global_state, update_single_unit_energy
 
 
@@ -42,15 +43,22 @@ class AgentRl:
         self.lr_rate = config["hyper"]["lr_rate"]
         # Model parameters
         self.action_size = config[self.player]["action_size"]
-        self.policy_net = DQN(config[self.player]["channels"], config[self.player]["hidden_size"],
-                              config[self.player]["action_size"]).to(self.device)
-        self.target_net = DQN(config[self.player]["channels"], config[self.player]["hidden_size"],
-                              config[self.player]["action_size"]).to(self.device)
-        self.update_target_net()
-        self.target_net.eval()
-        self.memory = ReplayBuffer(config[self.player]["buffer"])
-        self.optimizer = optim.Adam(self.policy_net.parameters(), lr=self.lr_rate)
-        self.loss = MSELoss() if config[self.player]["loss"] == 'MSE' else HuberLoss()
+        policy_model = "dqn"
+        if policy_model == "dqn":
+            self.policy_net = DQN(config[self.player]["channels"], config[self.player]["hidden_size"],
+                                  config[self.player]["action_size"]).to(self.device)
+            self.target_net = DQN(config[self.player]["channels"], config[self.player]["hidden_size"],
+                                  config[self.player]["action_size"]).to(self.device)
+            self.update_target_net()
+            self.target_net.eval()
+            self.memory = ReplayBuffer(config[self.player]["buffer"])
+            self.optimizer = optim.Adam(self.policy_net.parameters(), lr=self.lr_rate)
+            self.loss = MSELoss() if config[self.player]["loss"] == 'MSE' else HuberLoss()
+        else:
+            self.actor_critic = ActorCritic(config[self.player]["channels"], config[self.player]["hidden_size"],
+                                  config[self.player]["action_size"]).to(self.device)
+            self.memory = ReplayBuffer(8080)
+            self.optimizer = optim.Adam(self.actor_critic.parameters(), lr=self.lr_rate)
 
     def update_env_cfg(self, new_cfg):
         self.env_cfg = new_cfg
