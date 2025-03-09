@@ -90,7 +90,10 @@ def get_unit_reward(unit_state, action, pos_x, pos_y, relics_mask, relics_positi
             if new_distance == 0: # already in relic range (2x2)
                 return float(1)
             else: # outside relic range
-                return float(1 - new_distance/46) # 46 as max distance between two tiles on map
+                if action_type == 0: # stay
+                    return float(-5)
+                else:
+                    return float(1 - new_distance/46) # 46 as max distance between two tiles on map
         else:
             next_tile_x = pos_x
             next_tile_y = pos_y
