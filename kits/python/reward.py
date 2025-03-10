@@ -109,7 +109,8 @@ def get_unit_reward(unit_state, action, pos_x, pos_y, relics_mask, relics_positi
                 # return float(-1)
                 return float(-5)
             if next_tile_x > 23 or next_tile_y > 23: # outside of map
-                return float(-1)
+                # return float(-1)
+                return float(0)
             elif unit_state[2, next_tile_x, next_tile_y] > 0 or unit_state[3, next_tile_x, next_tile_y] > 0: # nebula or asteroid
                 return float(-1)
             else:
