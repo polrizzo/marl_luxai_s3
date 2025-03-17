@@ -264,7 +264,8 @@ class AgentRl:
             critic_loss.backward(retain_graph=True)
             self.optimizerCritic.step()
             # clip gradient
-            # torch.nn.utils.clip_grad_norm_(parameters=self.policy_net.parameters(), max_norm=1)
+            torch.nn.utils.clip_grad_norm_(parameters=self.actor.parameters(), max_norm=10)
+            torch.nn.utils.clip_grad_norm_(parameters=self.critic.parameters(), max_norm=3)
             # log gradients
             epoch_grad_norms_actor = [param.grad.norm(2).item() for param in self.actor.parameters() if
                                 param.grad is not None]
