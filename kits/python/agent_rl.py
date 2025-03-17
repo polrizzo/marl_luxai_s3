@@ -293,12 +293,21 @@ class AgentRl:
 
     def save_model(self):
         now_str = datetime.now().strftime("%Y-%m-%d_%H:%M")
-        name_model = "dqn_" + self.player + now_str
-        torch.save({
-            'policy_net': self.policy_net.state_dict(),
-            'target_net': self.target_net.state_dict(),
-            'optimizer': self.optimizer.state_dict()
-        }, f'model_pytorch/{name_model}.pth')
+        if self.policy_model == "dqn":
+            name_model = "dqn_" + self.player + now_str
+            torch.save({
+                'policy_net': self.policy_net.state_dict(),
+                'target_net': self.target_net.state_dict(),
+                'optimizer': self.optimizer.state_dict()
+            }, f'model_pytorch/{name_model}.pth')
+        else:
+            name_model = "a2c_" + self.player + now_str
+            torch.save({
+                'actor_net': self.actor.state_dict(),
+                'critic_net': self.critic.state_dict(),
+                'optimizer_actor': self.optimizerActor.state_dict(),
+                'optimizer_critic': self.optimizerCritic.state_dict()
+            }, f'model_pytorch/{name_model}.pth')
 
     def load_model(self, config: dict):
         try:
