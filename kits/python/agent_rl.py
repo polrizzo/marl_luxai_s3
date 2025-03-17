@@ -62,6 +62,7 @@ class AgentRl:
             self.memory = ReplayBuffer(8080)
             self.optimizerActor = optim.Adam(self.actor.parameters(), lr=self.lr_rate)
             self.optimizerCritic = optim.Adam(self.critic.parameters(), lr=self.lr_rate)
+            self.loss = MSELoss() if config[self.player]["loss"] == 'MSE' else HuberLoss()
 
     def update_env_cfg(self, new_cfg):
         self.env_cfg = new_cfg
@@ -234,13 +235,13 @@ class AgentRl:
             wandb.log({epsilon_name: self.epsilon})
         else:
             # Get Actor's policy Q-values
-            # current_q_values = self.actor(states).gather(1, actions.unsqueeze(1))
-            current_q_values = self.actor(states)[0].detach()
-            dist = torch.distributions.Categorical(current_q_values)
+            q_values = self.actor(states)
+            current_q_values = self.actor(states).max(1)[0].detach()
+            dist = torch.distributions.Categorical(q_values, validate_args = False)
             log_prob = dist.log_prob(current_q_values)
             # Get Critic's V-value
-            current_v_values = self.critic(states)[0].detach()
-            next_v_values = self.critic(next_states)[0].detach()
+            current_v_values = self.critic(states).flatten()
+            next_v_values = self.critic(next_states).flatten()
             # Compute Advantage function
             advantage = rewards - next_v_values
             advantage = (advantage - advantage.mean()) / (advantage.std() + 1e-8)
@@ -251,14 +252,17 @@ class AgentRl:
             critic_loss = self.loss(critic_predicted, current_v_values)
             # Log loss
             if player == "player_0":
-                wandb.log({"loss_0_actor": actor_loss, "loss_0_actor": critic_loss})
+                wandb.log({"loss_0_actor": actor_loss, "loss_0_critic": critic_loss})
             else:
-                wandb.log({"loss_1_actor": actor_loss, "loss_1_actor": critic_loss})
+                wandb.log({"loss_1_actor": actor_loss, "loss_1_critic": critic_loss})
             # Backward
             self.optimizerActor.zero_grad()
-            actor_loss.backward()
+            actor_loss.backward(retain_graph=True)
+            self.optimizerActor.step()
+
             self.optimizerCritic.zero_grad()
-            critic_loss.backward()
+            critic_loss.backward(retain_graph=True)
+            self.optimizerCritic.step()
             # clip gradient
             # torch.nn.utils.clip_grad_norm_(parameters=self.policy_net.parameters(), max_norm=1)
             # log gradients

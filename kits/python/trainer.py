@@ -37,7 +37,7 @@ if __name__ == "__main__":
         entity="polrizzo",
         project="LuxAI_S3",
         dir="/",
-        name="single_globalPosNeg",
+        name="a2c",
         config=config_trainer,
         group= "dqn_dqn",
         job_type= "training" if config_trainer["training"] else "testing",
@@ -208,14 +208,17 @@ if __name__ == "__main__":
         wandb.log({"total_games": i, "seed": seed,
                    "winner": 1 if winner > 0 else -1})
         # Update target_net every (num_games/update_tn)
-        if config_trainer["hyper"]["tau"] and config_trainer["hyper"]["tau"] is not None:
-            # update target net according to tau
-            player_0.update_target_net()
-            player_1.update_target_net()
-        elif (i+1) % (config_trainer["hyper"]['num_games'] // config_trainer["hyper"]['update_tn']) == 0:
-            # update target net every C-cycle
-            player_0.update_target_net()
-            player_1.update_target_net()
+        if player_0.policy_model == "dqn":
+            if config_trainer["hyper"]["tau"] and config_trainer["hyper"]["tau"] is not None:
+                # update target net according to tau
+                player_0.update_target_net()
+                player_1.update_target_net()
+            elif (i+1) % (config_trainer["hyper"]['num_games'] // config_trainer["hyper"]['update_tn']) == 0:
+                # update target net every C-cycle
+                player_0.update_target_net()
+                player_1.update_target_net()
+            else:
+                pass
         else:
             pass
 
