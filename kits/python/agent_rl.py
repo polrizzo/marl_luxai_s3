@@ -261,7 +261,7 @@ class AgentRl:
             self.optimizerActor.step()
 
             self.optimizerCritic.zero_grad()
-            critic_loss.backward(retain_graph=True)
+            critic_loss.backward()
             self.optimizerCritic.step()
             # clip gradient
             torch.nn.utils.clip_grad_norm_(parameters=self.actor.parameters(), max_norm=10)
