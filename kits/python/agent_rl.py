@@ -6,7 +6,7 @@ import random
 import wandb
 from datetime import datetime
 from policy_DQN import DQN, ReplayBuffer
-from policy_AC import Actor, Critic
+from policy_AC import Actor, Critic, ActorCritic
 from state_custom import global_state, update_single_unit_energy
 
 
@@ -55,14 +55,20 @@ class AgentRl:
             self.optimizer = optim.Adam(self.policy_net.parameters(), lr=self.lr_rate)
             self.loss = MSELoss() if config[self.player]["loss"] == 'MSE' else HuberLoss()
         else:
-            self.actor = Actor(config[self.player]["channels"], config[self.player]["hidden_size"],
-                                  config[self.player]["action_size"]).to(self.device)
-            self.critic = Critic(config[self.player]["channels"], config[self.player]["hidden_size"],
-                                      config[self.player]["action_size"]).to(self.device)
+            # self.actor = Actor(config[self.player]["channels"], config[self.player]["hidden_size"],
+            #                       config[self.player]["action_size"]).to(self.device)
+            # self.critic = Critic(config[self.player]["channels"], config[self.player]["hidden_size"],
+            #                           config[self.player]["action_size"]).to(self.device)
+            # self.memory = ReplayBuffer(8080)
+            # self.optimizerActor = optim.Adam(self.actor.parameters(), lr=self.lr_rate)
+            # self.optimizerCritic = optim.Adam(self.critic.parameters(), lr=self.lr_rate)
+            # self.lossActor = MSELoss() if config[self.player]["loss"] == 'MSE' else HuberLoss()
+            # self.lossCritic = MSELoss() if config[self.player]["loss"] == 'MSE' else HuberLoss()
+            self.actorCritic = ActorCritic(config[self.player]["channels"], config[self.player]["hidden_size"],
+                               config[self.player]["action_size"]).to(self.device)
             self.memory = ReplayBuffer(8080)
-            self.optimizerActor = optim.Adam(self.actor.parameters(), lr=self.lr_rate)
-            self.optimizerCritic = optim.Adam(self.critic.parameters(), lr=self.lr_rate)
-            self.loss = MSELoss() if config[self.player]["loss"] == 'MSE' else HuberLoss()
+            self.optimizerActorCritic = optim.Adam(self.actorCritic.parameters(), lr=self.lr_rate)
+            self.lossActorCritic = MSELoss() if config[self.player]["loss"] == 'MSE' else HuberLoss()
 
     def update_env_cfg(self, new_cfg):
         self.env_cfg = new_cfg
@@ -98,7 +104,8 @@ class AgentRl:
                 if self.policy_model == "dqn":
                     action_type = self.policy_net(state_tensor).argmax().item()
                 else:
-                    action_type = self.actor(state_tensor).argmax().item()
+                    q_values, _ = self.actorCritic(state_tensor)
+                    action_type = q_values.argmax().item()
         # Sap action
         if action_type == 5:
             # check if state[1] (opponent channel) is full of zeros
@@ -154,7 +161,8 @@ class AgentRl:
                 if self.policy_model == "dqn":
                     action_type = self.target_net(state_tensor).argmax().item()
                 else:
-                    action_type = self.actor(state_tensor).argmax().item()
+                    q_values, _ = self.actorCritic(state_tensor)
+                    action_type = q_values.argmax().item()
                 # action_type = self.target_net(torch.from_numpy(state_single).to(self.device)).argmax().item()
             # Sap action
             if action_type == 5:
@@ -234,14 +242,69 @@ class AgentRl:
             epsilon_name = "epsilon_0" if player == "player_0" else "epsilon_1"
             wandb.log({epsilon_name: self.epsilon})
         else:
+            # # Get Actor's policy Q-values
+            # q_values = self.actor(states)
+            # current_q_values = self.actor(states).max(1)[0].detach()
+            # dist = torch.distributions.Categorical(q_values, validate_args = False)
+            # log_prob = dist.log_prob(current_q_values)
+            # # Get Critic's V-value
+            # current_v_values = self.critic(states).flatten()
+            # next_v_values = self.critic(next_states).flatten()
+            # # Compute Advantage function
+            # advantage = rewards - next_v_values
+            # advantage = (advantage - advantage.mean()) / (advantage.std() + 1e-8)
+            # # Policy gradient loss
+            # actor_loss = -(advantage * log_prob).mean()
+            # # Value loss using the TD(gae_lambda) target
+            # critic_predicted = rewards + next_v_values
+            # critic_loss = self.lossCritic(critic_predicted, current_v_values)
+            # combined_loss = actor_loss + critic_loss
+            # # Log loss
+            # if player == "player_0":
+            #     wandb.log({"loss_0_actor": actor_loss, "loss_0_critic": critic_loss})
+            # else:
+            #     wandb.log({"loss_1_actor": actor_loss, "loss_1_critic": critic_loss})
+            # # Actor loss
+            # self.optimizerActor.zero_grad()
+            # self.optimizerCritic.zero_grad()
+            # combined_loss.backward()
+            # # actor_loss.backward(retain_graph=True)
+            # # actor_loss.backward()
+            # torch.nn.utils.clip_grad_norm_(parameters=self.actor.parameters(), max_norm=10)
+            # epoch_grad_norms_actor = [param.grad.norm(2).item() for param in self.actor.parameters() if
+            #                           param.grad is not None]
+            # if player == "player_0":
+            #     for grad_param in epoch_grad_norms_actor:
+            #         wandb.log({"gradient_0_actor": grad_param})
+            # else:
+            #     for grad_param in epoch_grad_norms_actor:
+            #         wandb.log({"gradient_1_actor": grad_param})
+            # self.optimizerActor.step()
+            # # Critic loss
+            # self.optimizerCritic.zero_grad()
+            # # self.optimizerCritic.zero_grad()
+            # # critic_loss.backward()
+            # # critic_loss.backward(retain_graph=True)
+            # torch.nn.utils.clip_grad_norm_(parameters=self.critic.parameters(), max_norm=3)
+            # epoch_grad_norms_critic = [param.grad.norm(2).item() for param in self.critic.parameters() if
+            #                           param.grad is not None]
+            # if player == "player_0":
+            #     for grad_param in epoch_grad_norms_critic:
+            #         wandb.log({"gradient_0_critic": grad_param})
+            # else:
+            #     for grad_param in epoch_grad_norms_critic:
+            #         wandb.log({"gradient_1_critic": grad_param})
+            # self.optimizerCritic.step()
             # Get Actor's policy Q-values
-            q_values = self.actor(states)
-            current_q_values = self.actor(states).max(1)[0].detach()
-            dist = torch.distributions.Categorical(q_values, validate_args = False)
-            log_prob = dist.log_prob(current_q_values)
+            q_value, v_value = self.actorCritic(states)
+            current_q_value, _ = self.actorCritic(states)
+            current_q_value = current_q_value.max(1)[0].detach()
+            dist = torch.distributions.Categorical(q_value, validate_args=False)
+            log_prob = dist.log_prob(current_q_value)
             # Get Critic's V-value
-            current_v_values = self.critic(states).flatten()
-            next_v_values = self.critic(next_states).flatten()
+            current_v_values = v_value.flatten()
+            _, next_v_values = self.actorCritic(next_states)
+            next_v_values = next_v_values.flatten()
             # Compute Advantage function
             advantage = rewards - next_v_values
             advantage = (advantage - advantage.mean()) / (advantage.std() + 1e-8)
@@ -249,38 +312,26 @@ class AgentRl:
             actor_loss = -(advantage * log_prob).mean()
             # Value loss using the TD(gae_lambda) target
             critic_predicted = rewards + next_v_values
-            critic_loss = self.loss(critic_predicted, current_v_values)
+            critic_loss = self.lossActorCritic(critic_predicted, current_v_values)
+            combined_loss = (actor_loss + critic_loss)
             # Log loss
             if player == "player_0":
                 wandb.log({"loss_0_actor": actor_loss, "loss_0_critic": critic_loss})
             else:
                 wandb.log({"loss_1_actor": actor_loss, "loss_1_critic": critic_loss})
-            # Backward
-            self.optimizerActor.zero_grad()
-            actor_loss.backward(retain_graph=True)
-            self.optimizerActor.step()
-
-            self.optimizerCritic.zero_grad()
-            critic_loss.backward()
-            self.optimizerCritic.step()
-            # clip gradient
-            torch.nn.utils.clip_grad_norm_(parameters=self.actor.parameters(), max_norm=10)
-            torch.nn.utils.clip_grad_norm_(parameters=self.critic.parameters(), max_norm=3)
-            # log gradients
-            epoch_grad_norms_actor = [param.grad.norm(2).item() for param in self.actor.parameters() if
-                                param.grad is not None]
-            epoch_grad_norms_critic = [param.grad.norm(2).item() for param in self.critic.parameters() if
+            # Actor loss
+            self.optimizerActorCritic.zero_grad()
+            combined_loss.backward()
+            torch.nn.utils.clip_grad_norm_(parameters=self.actorCritic.parameters(), max_norm=10)
+            epoch_grad_norms_actor = [param.grad.norm(2).item() for param in self.actorCritic.parameters() if
                                       param.grad is not None]
             if player == "player_0":
                 for grad_param in epoch_grad_norms_actor:
-                    wandb.log({"gradient_0_actor": grad_param})
-                for grad_param in epoch_grad_norms_critic:
-                    wandb.log({"gradient_0_critic": grad_param})
+                    wandb.log({"gradient_0_actorCritic": grad_param})
             else:
                 for grad_param in epoch_grad_norms_actor:
-                    wandb.log({"gradient_1_actor": grad_param})
-                for grad_param in epoch_grad_norms_critic:
-                    wandb.log({"gradient_1_critic": grad_param})
+                    wandb.log({"gradient_1_actorCritic": grad_param})
+            self.optimizerActorCritic.step()
 
     def update_target_net(self):
         if self.tau is None:
@@ -304,10 +355,8 @@ class AgentRl:
         else:
             name_model = "a2c_" + self.player + now_str
             torch.save({
-                'actor_net': self.actor.state_dict(),
-                'critic_net': self.critic.state_dict(),
-                'optimizer_actor': self.optimizerActor.state_dict(),
-                'optimizer_critic': self.optimizerCritic.state_dict()
+                'actor_net': self.actorCritic.state_dict(),
+                'optimizer_actor': self.optimizerActorCritic.state_dict(),
             }, f'model_pytorch/{name_model}.pth')
 
     def load_model(self, config: dict):
