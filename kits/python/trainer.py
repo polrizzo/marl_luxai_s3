@@ -39,7 +39,7 @@ if __name__ == "__main__":
         dir="/",
         name="a2c",
         config=config_trainer,
-        group= "dqn_dqn",
+        group= "a2c_a2c",
         job_type= "training" if config_trainer["training"] else "testing",
         # id: (str | None) = None, # settings: (Settings | dict[str, Any] | None) = None
         # reinit: (bool | None) = None,
